@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
         CouponEntity::class,
         AdEntity::class
     ],
-    version = 2,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -54,7 +54,11 @@ abstract class AppDatabase : RoomDatabase() {
                     imageUrl = "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=500&q=80",
                     rating = 4.9f,
                     reviewCount = 142,
-                    workingHours = "09:00 - 21:00"
+                    workingHours = "09:00 - 21:00",
+                    isApproved = true,
+                    status = "APPROVED",
+                    ownerName = "Mehmet Can",
+                    ownerPhone = "05559998877"
                 ),
                 SalonEntity(
                     id = 2,
@@ -64,7 +68,11 @@ abstract class AppDatabase : RoomDatabase() {
                     imageUrl = "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=500&q=80",
                     rating = 4.8f,
                     reviewCount = 215,
-                    workingHours = "08:30 - 20:00"
+                    workingHours = "08:30 - 20:00",
+                    isApproved = true,
+                    status = "APPROVED",
+                    ownerName = "Canan Güneş",
+                    ownerPhone = "05552223344"
                 ),
                 SalonEntity(
                     id = 3,
@@ -74,7 +82,11 @@ abstract class AppDatabase : RoomDatabase() {
                     imageUrl = "https://images.unsplash.com/photo-1621605815971-fbc98d665033?auto=format&fit=crop&w=500&q=80",
                     rating = 4.7f,
                     reviewCount = 98,
-                    workingHours = "10:00 - 22:00"
+                    workingHours = "10:00 - 22:00",
+                    isApproved = true,
+                    status = "APPROVED",
+                    ownerName = "Erol Demir",
+                    ownerPhone = "05553334455"
                 ),
                 SalonEntity(
                     id = 4,
@@ -84,7 +96,39 @@ abstract class AppDatabase : RoomDatabase() {
                     imageUrl = "https://images.unsplash.com/photo-1605497746444-ac9dbd324ce8?auto=format&fit=crop&w=500&q=80",
                     rating = 4.6f,
                     reviewCount = 64,
-                    workingHours = "08:00 - 20:00"
+                    workingHours = "08:00 - 20:00",
+                    isApproved = true,
+                    status = "APPROVED",
+                    ownerName = "Ahmet Yılmaz",
+                    ownerPhone = "05554445566"
+                ),
+                SalonEntity(
+                    id = 5,
+                    name = "Pending Deneme Kuaförü",
+                    category = "KADIN",
+                    address = "Nişantaşı, İstanbul",
+                    imageUrl = "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=500&q=80",
+                    rating = 4.0f,
+                    reviewCount = 0,
+                    workingHours = "09:00 - 20:00",
+                    isApproved = false,
+                    status = "PENDING",
+                    ownerName = "Merve Arslan",
+                    ownerPhone = "05556667788"
+                ),
+                SalonEntity(
+                    id = 6,
+                    name = "Suspended Deneme Salonu",
+                    category = "ERKEK",
+                    address = "Karşıyaka, İzmir",
+                    imageUrl = "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=500&q=80",
+                    rating = 3.5f,
+                    reviewCount = 10,
+                    workingHours = "09:00 - 19:00",
+                    isApproved = false,
+                    status = "SUSPENDED",
+                    ownerName = "Bülent Avcı",
+                    ownerPhone = "05558889900"
                 )
             )
             dao.insertSalons(salons)

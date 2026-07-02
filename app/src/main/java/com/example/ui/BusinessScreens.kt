@@ -1223,31 +1223,138 @@ fun BusinessCalendarScreen(viewModel: AppViewModel) {
     val appointments by viewModel.filteredBusinessAppointments.collectAsState()
     var showManualBookingDialog by remember { mutableStateOf(false) }
 
+    var showSuccessInviteDialog by remember { mutableStateOf(false) }
+    var successDialogSmsContent by remember { mutableStateOf("") }
+    var successDialogClientPhone by remember { mutableStateOf("") }
+    var successDialogClientName by remember { mutableStateOf("") }
+    var successDialogClientDate by remember { mutableStateOf("") }
+    var successDialogClientTime by remember { mutableStateOf("") }
+
+    val activeSalon by viewModel.activeBusinessSalon.collectAsState(initial = null)
+    val allAppointments by viewModel.adminAllAppointments.collectAsState()
+
+    val daysList = remember {
+        val list = mutableListOf<Triple<String, String, String>>() // dayName, dayNum, fullDateString
+        val cal = java.util.Calendar.getInstance()
+        val sdfName = java.text.SimpleDateFormat("EEE", java.util.Locale("tr"))
+        val sdfNum = java.text.SimpleDateFormat("dd", java.util.Locale.getDefault())
+        val sdfFull = java.text.SimpleDateFormat("dd.MM.yyyy", java.util.Locale.getDefault())
+        for (i in 0 until 14) {
+            val dayName = sdfName.format(cal.time)
+            val dayNum = sdfNum.format(cal.time)
+            val fullDate = sdfFull.format(cal.time)
+            list.add(Triple(dayName, dayNum, fullDate))
+            cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+        }
+        list
+    }
+
+    val openDatePicker = {
+        val calendar = java.util.Calendar.getInstance()
+        if (selectedDate.isNotEmpty()) {
+            try {
+                val sdf = java.text.SimpleDateFormat("dd.MM.yyyy", java.util.Locale.getDefault())
+                sdf.parse(selectedDate)?.let {
+                    calendar.time = it
+                }
+            } catch (e: Exception) {}
+        }
+        android.app.DatePickerDialog(
+            context,
+            { _, year, month, dayOfMonth ->
+                val selectedCal = java.util.Calendar.getInstance().apply {
+                    set(java.util.Calendar.YEAR, year)
+                    set(java.util.Calendar.MONTH, month)
+                    set(java.util.Calendar.DAY_OF_MONTH, dayOfMonth)
+                }
+                val formattedDate = java.text.SimpleDateFormat("dd.MM.yyyy", java.util.Locale.getDefault()).format(selectedCal.time)
+                viewModel.businessCalendarDate.value = formattedDate
+            },
+            calendar.get(java.util.Calendar.YEAR),
+            calendar.get(java.util.Calendar.MONTH),
+            calendar.get(java.util.Calendar.DAY_OF_MONTH)
+        ).show()
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        // Date controller header
         Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = { viewModel.changeBusinessCalendarDate(-1) }) {
-                Icon(Icons.Default.ChevronLeft, "Önceki Gün")
-            }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.CalendarToday, null, tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Default.CalendarToday, null, tint = Color(0xFF185C5C))
                 Text(
-                    text = " Tarih: $selectedDate",
+                    text = " Ajanda: $selectedDate",
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
                     color = MaterialTheme.colorScheme.secondary
                 )
             }
-            IconButton(onClick = { viewModel.changeBusinessCalendarDate(1) }) {
-                Icon(Icons.Default.ChevronRight, "Sonraki Gün")
+        }
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+        ) {
+            LazyRow(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(end = 8.dp)
+            ) {
+                items(daysList) { (dayName, dayNum, fullDate) ->
+                    val isSel = selectedDate == fullDate
+                    Card(
+                        onClick = { viewModel.businessCalendarDate.value = fullDate },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isSel) Color(0xFF185C5C) else Color.White
+                        ),
+                        border = BorderStroke(1.dp, if (isSel) Color(0xFF185C5C) else Color(0xFFE2E8F0)),
+                        modifier = Modifier.width(60.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(vertical = 12.dp, horizontal = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = dayName.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale("tr")) else it.toString() },
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp,
+                                color = if (isSel) Color.White else Color.Gray,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = dayNum,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 16.sp,
+                                color = if (isSel) Color.White else Color(0xFF242424),
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                }
+            }
+            
+            IconButton(
+                onClick = { openDatePicker() },
+                modifier = Modifier
+                    .size(50.dp)
+                    .background(Color.White, RoundedCornerShape(12.dp))
+                    .border(BorderStroke(1.dp, Color(0xFFE2E8F0)), RoundedCornerShape(12.dp))
+            ) {
+                Icon(
+                    imageVector = Icons.Default.DateRange,
+                    contentDescription = "Takvimden Seç",
+                    tint = Color(0xFF185C5C)
+                )
             }
         }
 
@@ -1414,6 +1521,15 @@ fun BusinessCalendarScreen(viewModel: AppViewModel) {
         val chosenStaff by viewModel.manualSelectedStaff.collectAsState()
         val chosenTime by viewModel.manualSelectedTime.collectAsState()
         val chosenServices by viewModel.manualSelectedServices.collectAsState()
+        val activeSalonId by viewModel.activeBusinessSalonId.collectAsState()
+
+        val isNameValid = inputName.trim().length >= 2
+        val isPhoneValid = inputPhone.replace(" ", "").matches(Regex("^[0-9]{10,11}$"))
+        val isDateValid = inputDate.isNotBlank() && inputDate.matches(Regex("^\\d{2}\\.\\d{2}\\.\\d{4}$"))
+        val isServicesValid = chosenServices.isNotEmpty()
+        val isTimeValid = chosenTime.isNotBlank()
+
+        val isFormValid = isNameValid && isPhoneValid && isDateValid && isServicesValid && isTimeValid
 
         AlertDialog(
             onDismissRequest = { showManualBookingDialog = false },
@@ -1428,8 +1544,12 @@ fun BusinessCalendarScreen(viewModel: AppViewModel) {
                         onValueChange = { viewModel.manualCustomerName.value = it },
                         label = { Text("Müşteri Adı") },
                         modifier = Modifier.fillMaxWidth().testTag("manual_name_input"),
-                        singleLine = true
+                        singleLine = true,
+                        isError = inputName.isNotEmpty() && !isNameValid
                     )
+                    if (inputName.isNotEmpty() && !isNameValid) {
+                        Text("Lütfen geçerli bir isim girin (en az 2 karakter).", color = Color.Red, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
+                    }
                     Spacer(modifier = Modifier.height(8.dp))
 
                     OutlinedTextField(
@@ -1437,8 +1557,12 @@ fun BusinessCalendarScreen(viewModel: AppViewModel) {
                         onValueChange = { viewModel.manualCustomerPhone.value = it },
                         label = { Text("Telefon Numarası") },
                         modifier = Modifier.fillMaxWidth().testTag("manual_phone_input"),
-                        singleLine = true
+                        singleLine = true,
+                        isError = inputPhone.isNotEmpty() && !isPhoneValid
                     )
+                    if (inputPhone.isNotEmpty() && !isPhoneValid) {
+                        Text("Geçerli telefon numarası girin (örn: 05551112233).", color = Color.Red, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
+                    }
                     Spacer(modifier = Modifier.height(8.dp))
 
                     OutlinedTextField(
@@ -1446,10 +1570,13 @@ fun BusinessCalendarScreen(viewModel: AppViewModel) {
                         onValueChange = { viewModel.manualSelectedDate.value = it },
                         label = { Text("Randevu Tarihi (Örn: 04.06.2026)") },
                         modifier = Modifier.fillMaxWidth().testTag("manual_date_input"),
-                        singleLine = true
+                        singleLine = true,
+                        isError = inputDate.isNotEmpty() && !isDateValid
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
-
+                    if (inputDate.isNotEmpty() && !isDateValid) {
+                        Text("Lütfen gg.aa.yyyy formatında tarih girin.", color = Color.Red, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     Text("Hizmet Seçimi (Çoklu)", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     activeServices.forEach { s ->
@@ -1475,8 +1602,11 @@ fun BusinessCalendarScreen(viewModel: AppViewModel) {
                             Text("${s.name} - ₺${s.price.toInt()}", fontSize = 13.sp)
                         }
                     }
+                    if (chosenServices.isEmpty()) {
+                        Text("Lütfen en az bir hizmet seçin.", color = Color.Red, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp, top = 4.dp))
+                    }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     Text("Personel Seçimi", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     staffList.forEach { staff ->
@@ -1495,33 +1625,182 @@ fun BusinessCalendarScreen(viewModel: AppViewModel) {
                         }
                     }
 
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text("Randevu Saati Seçimi", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    OutlinedTextField(
-                        value = chosenTime,
-                        onValueChange = { viewModel.manualSelectedTime.value = it },
-                        label = { Text("Randevu Saati (Örn: 14:30)") },
-                        modifier = Modifier.fillMaxWidth().testTag("manual_time_input"),
-                        singleLine = true
+                    val localParseTime = { timeStr: String ->
+                        val parts = timeStr.trim().split(":")
+                        if (parts.size >= 2) {
+                            (parts[0].toIntOrNull() ?: 0) * 60 + (parts[1].toIntOrNull() ?: 0)
+                        } else 0
+                    }
+
+                    val workingHoursStr = activeSalon?.workingHours ?: "09:00 - 19:00"
+
+                    val isWithinWorkingHours = { slotTime: String ->
+                        if (workingHoursStr.isBlank()) true
+                        else {
+                            val parts = workingHoursStr.split("-")
+                            if (parts.size == 2) {
+                                val startWork = localParseTime(parts[0].trim())
+                                val endWork = localParseTime(parts[1].trim())
+                                val slotStart = localParseTime(slotTime)
+                                slotStart >= startWork && slotStart < endWork
+                            } else true
+                        }
+                    }
+
+                    val approvedApptsForManual = remember(allAppointments, inputDate, chosenStaff) {
+                        val currentStaff = chosenStaff
+                        if (currentStaff != null) {
+                            allAppointments.filter { 
+                                it.salonId == activeSalonId && 
+                                it.staffId == currentStaff.id && 
+                                it.date == inputDate && 
+                                (it.status == "APPROVED" || it.status == "COMPLETED")
+                            }
+                        } else {
+                            allAppointments.filter { 
+                                it.salonId == activeSalonId && 
+                                it.date == inputDate && 
+                                (it.status == "APPROVED" || it.status == "COMPLETED")
+                            }
+                        }
+                    }
+
+                    val totalDuration = chosenServices.sumOf { it.durationMinutes }
+
+                    val isSlotBookedForManual = { slotTime: String ->
+                        val slotStart = localParseTime(slotTime)
+                        val slotEnd = slotStart + totalDuration.coerceAtLeast(30)
+                        
+                        val currentStaff = chosenStaff
+                        if (currentStaff != null) {
+                            approvedApptsForManual.any { appt ->
+                                if (appt.staffId == currentStaff.id) {
+                                    val apptStart = localParseTime(appt.time)
+                                    val apptEnd = apptStart + appt.totalDuration
+                                    slotStart < apptEnd && apptStart < slotEnd
+                                } else false
+                            }
+                        } else {
+                            if (staffList.isEmpty()) false
+                            else {
+                                staffList.all { staff ->
+                                    approvedApptsForManual.any { appt ->
+                                        if (appt.staffId == staff.id) {
+                                            val apptStart = localParseTime(appt.time)
+                                            val apptEnd = apptStart + appt.totalDuration
+                                            slotStart < apptEnd && apptStart < slotEnd
+                                        } else false
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    val slotsList = listOf(
+                        "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
+                        "12:00", "12:30", "13:00", "13:30", "14:00", "14:30",
+                        "15:00", "15:30", "16:00", "16:30", "17:00", "17:30",
+                        "18:00", "18:30", "19:00", "19:30", "20:00"
                     )
+
+                    val chunkedSlots = slotsList.chunked(3)
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        chunkedSlots.forEach { rowSlots ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                rowSlots.forEach { slotTime ->
+                                    val isBooked = isSlotBookedForManual(slotTime)
+                                    val isWithinHours = isWithinWorkingHours(slotTime)
+                                    val isSel = chosenTime == slotTime
+                                    val isDisabled = isBooked || !isWithinHours
+                                    
+                                    Card(
+                                        onClick = { 
+                                            if (!isDisabled) {
+                                                viewModel.manualSelectedTime.value = slotTime 
+                                            }
+                                        },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(38.dp)
+                                            .testTag("manual_time_slot_button_$slotTime"),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = when {
+                                                isDisabled -> Color(0xFFE2E8F0)
+                                                isSel -> Color(0xFF185C5C)
+                                                else -> Color.White
+                                            }
+                                        ),
+                                        border = BorderStroke(
+                                            width = 1.dp,
+                                            color = when {
+                                                isDisabled -> Color(0xFFCBD5E1)
+                                                isSel -> Color(0xFF185C5C)
+                                                else -> Color(0xFFCBD5E1)
+                                            }
+                                        ),
+                                        enabled = !isDisabled
+                                    ) {
+                                        Box(
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = slotTime,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = when {
+                                                    isDisabled -> Color.Gray
+                                                    isSel -> Color.White
+                                                    else -> Color(0xFF242424)
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                                if (rowSlots.size < 3) {
+                                    Spacer(modifier = Modifier.weight((3 - rowSlots.size).toFloat()))
+                                }
+                            }
+                        }
+                    }
+                    if (chosenTime.isEmpty()) {
+                        Text("Lütfen bir saat slotu seçin.", color = Color.Red, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp, top = 4.dp))
+                    }
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        if (inputName.isNotBlank() && inputPhone.isNotBlank() && chosenServices.isNotEmpty() && chosenTime.isNotBlank()) {
-                            // We save client info before addManualAppointment clears them from the state.
-                            // This ensures the WhatsApp invite is constructed using correct and complete user details.
+                        if (isFormValid) {
                             val clientName = inputName
                             val clientPhone = inputPhone
                             val clientTime = chosenTime
-                            val clientDate = viewModel.manualSelectedDate.value
+                            val clientDate = inputDate
+                            val staffId = chosenStaff?.id ?: 0
+                            val sName = activeSalon?.name ?: "Salonumuz"
+                            val inviteUrl = "kuafor.app/kayit?ref=STAFF_$staffId"
+                            val smsMsg = "Merhaba $clientName, $sName salonundaki randevunuz $clientDate $clientTime için oluşturulmuştur. Kayıt olup indirim kazanmak için tıklayın: $inviteUrl"
+
+                            successDialogSmsContent = smsMsg
+                            successDialogClientPhone = clientPhone
+                            successDialogClientName = clientName
+                            successDialogClientDate = clientDate
+                            successDialogClientTime = clientTime
 
                             viewModel.addManualAppointment()
                             showManualBookingDialog = false
-                            sendWhatsAppInvite(context, clientPhone, clientName, clientDate, clientTime)
+                            showSuccessInviteDialog = true
                         }
                     },
+                    enabled = isFormValid,
                     modifier = Modifier.testTag("submit_manual_booking_button")
                 ) {
                     Text("Takvime Ekle")
@@ -1530,6 +1809,61 @@ fun BusinessCalendarScreen(viewModel: AppViewModel) {
             dismissButton = {
                 TextButton(onClick = { showManualBookingDialog = false }) {
                     Text("İptal")
+                }
+            }
+        )
+    }
+
+    if (showSuccessInviteDialog) {
+        val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
+        AlertDialog(
+            onDismissRequest = { showSuccessInviteDialog = false },
+            title = { Text("Randevu Başarıyla Oluşturuldu", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text("Müşteriye iletmek için SMS / Bilgilendirme metni oluşturulmuştur. Aşağıdaki butona tıklayarak kopyalayabilirsiniz:", fontSize = 13.sp)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFFF1F5F9), RoundedCornerShape(8.dp))
+                            .border(BorderStroke(1.dp, Color(0xFFCBD5E1)), RoundedCornerShape(8.dp))
+                            .padding(12.dp)
+                    ) {
+                        Text(
+                            text = successDialogSmsContent,
+                            fontSize = 12.sp,
+                            color = Color.DarkGray
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(successDialogSmsContent))
+                        viewModel.triggerNotification("SMS Davet metni panoya kopyalandı!")
+                    }
+                ) {
+                    Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Metni Kopyala")
+                }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(
+                        onClick = {
+                            sendWhatsAppInvite(context, successDialogClientPhone, successDialogClientName, successDialogClientDate, successDialogClientTime)
+                            showSuccessInviteDialog = false
+                        }
+                    ) {
+                        Text("WhatsApp Gönder")
+                    }
+                    TextButton(onClick = { showSuccessInviteDialog = false }) {
+                        Text("Kapat")
+                    }
                 }
             }
         )
@@ -2007,12 +2341,517 @@ fun BusinessCampaignsScreen(viewModel: AppViewModel) {
     }
 }
 
-// We define a helper function to send an invite message containing booking details and download link via WhatsApp.
-// This implements a low-friction viral growth loop by encouraging customers to download the app.
 fun sendWhatsAppInvite(context: Context, phone: String, name: String, date: String, time: String) {
     val message = "Merhaba $name, randevunuz $date saat $time için başarıyla oluşturuldu. Bir sonraki randevunuzu telefonla aramadan 3 tıkla kolayca almak için uygulamamızı indirin: https://kuaforumapp.com/download"
-    val intent = Intent(Intent.ACTION_VIEW).apply {
-        data = Uri.parse("https://api.whatsapp.com/send?phone=$phone&text=${Uri.encode(message)}")
+    try {
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            data = Uri.parse("https://api.whatsapp.com/send?phone=$phone&text=${Uri.encode(message)}")
+        }
+        context.startActivity(intent)
+    } catch (e: Exception) {
+        android.widget.Toast.makeText(context, "WhatsApp uygulaması bulunamadı!", android.widget.Toast.LENGTH_SHORT).show()
     }
-    context.startActivity(intent)
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun StaffMainScreen(
+    viewModel: AppViewModel,
+    modifier: Modifier = Modifier
+) {
+    BackHandler { viewModel.navigateTo("ONBOARDING") }
+    val loggedInStaff by viewModel.loggedInStaff.collectAsState()
+    
+    var activeTab by remember { mutableStateOf("CALENDAR") } // "CALENDAR", "PROFILE"
+    val notificationMessage by viewModel.notificationMessage.collectAsState(initial = "")
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(notificationMessage) {
+        if (notificationMessage.isNotBlank()) {
+            snackbarHostState.showSnackbar(notificationMessage)
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Column {
+                        Text(
+                            text = loggedInStaff?.name ?: "Çalışan Paneli",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = loggedInStaff?.role ?: "Personel Girişi",
+                            fontSize = 10.sp,
+                            color = Color.LightGray
+                        )
+                    }
+                },
+                actions = {
+                    TextButton(
+                        onClick = { viewModel.navigateTo("ONBOARDING") }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ExitToApp,
+                            contentDescription = "Çıkış Yap",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            text = " Çıkış",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color(0xFF185C5C),
+                    titleContentColor = Color.White
+                )
+            )
+        },
+        bottomBar = {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surface,
+                tonalElevation = 8.dp
+            ) {
+                NavigationBarItem(
+                    selected = activeTab == "CALENDAR",
+                    onClick = { activeTab = "CALENDAR" },
+                    icon = { Icon(Icons.Default.CalendarToday, "Takvim") },
+                    label = { Text("Takvim") }
+                )
+                NavigationBarItem(
+                    selected = activeTab == "PROFILE",
+                    onClick = { activeTab = "PROFILE" },
+                    icon = { Icon(Icons.Default.Person, "Profilim") },
+                    label = { Text("Profilim") }
+                )
+            }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
+    ) { innerPadding ->
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .background(MaterialTheme.colorScheme.background)
+        ) {
+            when (activeTab) {
+                "CALENDAR" -> StaffCalendarTab(viewModel)
+                "PROFILE" -> StaffProfileTab(viewModel)
+            }
+        }
+    }
+}
+
+@Composable
+fun StaffCalendarTab(viewModel: AppViewModel) {
+    val selectedDate by viewModel.businessCalendarDate.collectAsState()
+    val allAppointments by viewModel.businessAppointments.collectAsState()
+    val loggedInStaff by viewModel.loggedInStaff.collectAsState()
+
+    val staffAppointments = remember(allAppointments, loggedInStaff) {
+        val staffId = loggedInStaff?.id
+        if (staffId != null) {
+            allAppointments.filter { it.staffId == staffId }
+        } else {
+            emptyList()
+        }
+    }
+
+    val dailyAppointments = remember(staffAppointments, selectedDate) {
+        staffAppointments.filter { it.date == selectedDate }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = { viewModel.changeBusinessCalendarDate(-1) }) {
+                Icon(Icons.Default.ChevronLeft, "Önceki Gün")
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.CalendarToday, null, tint = Color(0xFF185C5C))
+                Text(
+                    text = " Tarih: $selectedDate",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = Color(0xFF185C5C)
+                )
+            }
+            IconButton(onClick = { viewModel.changeBusinessCalendarDate(1) }) {
+                Icon(Icons.Default.ChevronRight, "Sonraki Gün")
+            }
+        }
+
+        HorizontalDivider()
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = "Benim Randevularım (${dailyAppointments.size})",
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF242424),
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        if (dailyAppointments.isEmpty()) {
+            Box(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Outlined.EventBusy, null, modifier = Modifier.size(48.dp), tint = Color.LightGray)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Bu tarihte size ait herhangi bir randevu bulunmamaktadır.",
+                        textAlign = TextAlign.Center,
+                        color = Color.Gray,
+                        fontSize = 13.sp
+                    )
+                }
+            }
+        } else {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                items(dailyAppointments) { appt ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("staff_appointment_card_${appt.id}"),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.AccessTime, null, tint = Color(0xFF185C5C), modifier = Modifier.size(16.dp))
+                                    Text(
+                                        text = " Saat: ${appt.time}",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 15.sp,
+                                        color = Color(0xFF242424)
+                                    )
+                                }
+
+                                val (statusText, statusColor) = when (appt.status) {
+                                    "PENDING" -> "Onay Bekliyor" to Color(0xFFD97706)
+                                    "APPROVED" -> "Onaylandı" to Color(0xFF059669)
+                                    "COMPLETED" -> "Tamamlandı" to Color(0xFF0284C7)
+                                    "REJECTED" -> "Reddedildi" to Color(0xFFDC2626)
+                                    else -> appt.status to Color.Gray
+                                }
+                                Text(
+                                    text = statusText,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = statusColor
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(text = "Müşteri: ${appt.customerName} (${appt.customerPhone})", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Text(text = "Hizmet: ${appt.serviceNames}", fontSize = 13.sp, color = Color.DarkGray)
+                            Text(text = "Süre: ${appt.totalDuration} dk • Tutar: ₺${appt.totalPrice.toInt()}", fontSize = 12.sp, color = Color.Gray)
+
+                            if (appt.note.isNotBlank()) {
+                                Text(
+                                    text = "Müşteri Notu: \"${appt.note}\"",
+                                    fontSize = 11.sp,
+                                    color = Color.LightGray,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+                            HorizontalDivider()
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Row(
+                                horizontalArrangement = Arrangement.End,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                when (appt.status) {
+                                    "PENDING" -> {
+                                        OutlinedButton(
+                                            onClick = { viewModel.updateAppointmentStatus(appt.id, "REJECTED") },
+                                            modifier = Modifier.padding(end = 8.dp).height(32.dp).testTag("reject_button_${appt.id}")
+                                        ) {
+                                            Text("Reddet", color = Color.Red, fontSize = 11.sp)
+                                        }
+                                        Button(
+                                            onClick = { viewModel.updateAppointmentStatus(appt.id, "APPROVED") },
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF185C5C)),
+                                            modifier = Modifier.height(32.dp).testTag("approve_button_${appt.id}")
+                                        ) {
+                                            Text("Onayla", color = Color.White, fontSize = 11.sp)
+                                        }
+                                    }
+                                    "APPROVED" -> {
+                                        OutlinedButton(
+                                            onClick = { viewModel.updateAppointmentStatus(appt.id, "NO_SHOW") },
+                                            modifier = Modifier.padding(end = 8.dp).height(32.dp).testTag("noshow_button_${appt.id}")
+                                        ) {
+                                            Text("Gelmedi", color = Color.Gray, fontSize = 11.sp)
+                                        }
+                                        Button(
+                                            onClick = { viewModel.updateAppointmentStatus(appt.id, "COMPLETED") },
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF185C5C)),
+                                            modifier = Modifier.height(32.dp).testTag("complete_button_${appt.id}")
+                                        ) {
+                                            Text("Tamamlandı", color = Color.White, fontSize = 11.sp)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun StaffProfileTab(viewModel: AppViewModel) {
+    val loggedInStaff by viewModel.loggedInStaff.collectAsState()
+    val staffList by viewModel.businessStaffList.collectAsState()
+
+    var newName by remember(loggedInStaff) { mutableStateOf(loggedInStaff?.name ?: "") }
+    var newImageUrl by remember(loggedInStaff) { mutableStateOf(loggedInStaff?.imageUrl ?: "") }
+
+    val leaderboard = remember(staffList) {
+        staffList.map { staff ->
+            val score = (staff.referralCount * 100) + (staff.rating * 20).toInt()
+            Triple(staff, score, staff.referralCount)
+        }.sortedByDescending { it.second }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+            shape = RoundedCornerShape(20.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(100.dp)
+                        .background(Color(0xFF185C5C).copy(alpha = 0.1f), CircleShape)
+                        .border(BorderStroke(2.dp, Color(0xFF185C5C)), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = newName.take(1).uppercase(),
+                        fontSize = 36.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color(0xFF185C5C)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = "Profil Bilgilerini Güncelle",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = Color(0xFF242424)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = newName,
+                    onValueChange = { newName = it },
+                    label = { Text("Ad Soyad") },
+                    modifier = Modifier.fillMaxWidth().testTag("staff_profile_name_input"),
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = newImageUrl,
+                    onValueChange = { newImageUrl = it },
+                    label = { Text("Profil Fotoğrafı URL") },
+                    modifier = Modifier.fillMaxWidth().testTag("staff_profile_image_input"),
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Button(
+                    onClick = {
+                        val current = loggedInStaff
+                        if (current != null && newName.isNotBlank()) {
+                            val updated = current.copy(name = newName, imageUrl = newImageUrl)
+                            viewModel.updateStaffProfile(updated)
+                        } else {
+                            viewModel.triggerNotification("Hata: Ad soyad boş olamaz!")
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().testTag("staff_profile_save_button"),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF185C5C)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Kaydet ve Güncelle", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Text(
+            text = "🏆 Salon İçi Liderlik Tablosu",
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF242424),
+            modifier = Modifier.align(Alignment.Start).padding(bottom = 8.dp)
+        )
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+            shape = RoundedCornerShape(20.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Çalışan", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.Gray)
+                    Row {
+                        Text("Üye", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.Gray, modifier = Modifier.padding(end = 16.dp))
+                        Text("Puan / Lig", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.Gray)
+                    }
+                }
+
+                HorizontalDivider()
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                leaderboard.forEachIndexed { index, (staff, score, refs) ->
+                    val rank = index + 1
+                    val isCurrentUser = staff.id == loggedInStaff?.id
+
+                    val rankColor = when (rank) {
+                        1 -> Color(0xFFD4AF37)
+                        2 -> Color(0xFFC0C0C0)
+                        3 -> Color(0xFFCD7F32)
+                        else -> Color(0xFF797979)
+                    }
+
+                    val leagueName = when {
+                        rank == 1 -> "Şampiyonlar Ligi"
+                        rank <= 3 -> "Altın Lig"
+                        else -> "Gümüş Lig"
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                color = if (isCurrentUser) Color(0xFF185C5C).copy(alpha = 0.05f) else Color.Transparent,
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .padding(vertical = 10.dp, horizontal = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .background(rankColor.copy(alpha = 0.2f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = rank.toString(),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = rankColor
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(10.dp))
+
+                            Column {
+                                Text(
+                                    text = staff.name,
+                                    fontWeight = if (isCurrentUser) FontWeight.ExtraBold else FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    color = Color(0xFF242424)
+                                )
+                                Text(
+                                    text = staff.role,
+                                    fontSize = 11.sp,
+                                    color = Color.Gray
+                                )
+                            }
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "$refs Üye",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF185C5C),
+                                modifier = Modifier.padding(end = 24.dp)
+                            )
+
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(
+                                    text = "$score Puan",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = Color(0xFF242424)
+                                )
+                                Text(
+                                    text = leagueName,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = rankColor
+                                )
+                            }
+                        }
+                    }
+                    if (index < leaderboard.size - 1) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                    }
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(20.dp))
+    }
 }

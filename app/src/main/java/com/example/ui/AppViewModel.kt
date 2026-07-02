@@ -89,6 +89,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             repository.getAppointmentsForCustomer(phone)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val businessAds = repository.getAllAdsFlow().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val loggedInStaff = MutableStateFlow<StaffEntity?>(null)
+    val customerReferralCount = MutableStateFlow(0)
+
     // --- BUSINESS MODE STATE ---
     // The business owner is associated with a specific salon branch.
     // They can switch between their multiple branches!
@@ -256,6 +260,38 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         triggerNotification("Varsayılan platform komisyon oranı %${String.format(Locale.US, "%.1f", newRate)} olarak güncellendi.")
     }
 
+    fun saveCustomCommissionRate(salonId: Int, rate: Double) {
+        viewModelScope.launch {
+            val salon = repository.getSalonById(salonId)
+            if (salon != null) {
+                val updated = salon.copy(commissionRate = rate)
+                repository.updateSalon(updated)
+                
+                // Update local state flow mapping just in case it is observed elsewhere
+                val currentRates = salonCommissionRates.value.toMutableMap()
+                currentRates[salonId] = rate
+                salonCommissionRates.value = currentRates
+                
+                _notificationMessage.emit("Salon komisyon oranı %$rate olarak veritabanına kaydedildi.")
+            }
+        }
+    }
+
+    fun addNewAd(title: String, imageUrl: String, targetSalonId: Int?) {
+        viewModelScope.launch {
+            val ad = AdEntity(title = title, imageUrl = imageUrl, targetSalonId = targetSalonId, isActive = true)
+            repository.insertAd(ad)
+            _notificationMessage.emit("Yeni reklam afişi başarıyla eklendi.")
+        }
+    }
+
+    fun deleteAd(ad: AdEntity) {
+        viewModelScope.launch {
+            repository.deleteAd(ad)
+            _notificationMessage.emit("Reklam başarıyla kaldırıldı.")
+        }
+    }
+
     private val prefs = application.getSharedPreferences("kuafor_prefs", android.content.Context.MODE_PRIVATE)
 
     init {
@@ -307,6 +343,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 e.printStackTrace()
             }
         }
+
+        // Auto sync commission rates from DB to the local map
+        viewModelScope.launch {
+            repository.allAdminSalons.collect { salons ->
+                val ratesMap = salons.associate { it.id to it.commissionRate }
+                salonCommissionRates.value = ratesMap
+            }
+        }
     }
 
     // Helper to trigger floating dynamic notification messages
@@ -330,13 +374,83 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // Complete customer login / profile update
-    fun loginCustomer(name: String, phone: String) {
+    fun loginCustomer(name: String, phone: String, refCode: String = "") {
         if (name.isNotBlank() && phone.isNotBlank()) {
             customerName.value = name
             customerPhone.value = phone
             _currentScreen.value = "CUSTOMER"
-            viewModelScope.launch {
-                _notificationMessage.emit("Giriş yapıldı: Welcome, $name")
+            if (refCode.trim().isNotBlank()) {
+                handleReferralRegistration(refCode.trim().uppercase(), phone)
+            } else {
+                viewModelScope.launch {
+                    _notificationMessage.emit("Giriş yapıldı: Welcome, $name")
+                }
+            }
+        }
+    }
+
+    fun loginBusinessOrStaff(phone: String, onFail: (String) -> Unit) {
+        viewModelScope.launch {
+            if (phone == "05559998877") {
+                // Salon Sahibi
+                loggedInStaff.value = null
+                navigateTo("BUSINESS")
+            } else {
+                val staff = repository.getStaffByPhone(phone.replace(" ", ""))
+                if (staff != null) {
+                    loggedInStaff.value = staff
+                    activeBusinessSalonId.value = staff.salonId
+                    navigateTo("STAFF_PANEL")
+                } else {
+                    onFail("Telefon numarası sistemde kayıtlı bir salon sahibine veya çalışana ait değil!")
+                }
+            }
+        }
+    }
+
+    fun updateStaffProfile(staff: StaffEntity) {
+        viewModelScope.launch {
+            repository.insertStaff(staff)
+            loggedInStaff.value = staff
+            triggerNotification("Profiliniz başarıyla güncellendi.")
+        }
+    }
+
+    fun handleReferralRegistration(refCode: String, newCustomerPhone: String) {
+        viewModelScope.launch {
+            if (refCode.startsWith("STAFF_")) {
+                val staffId = refCode.removePrefix("STAFF_").toIntOrNull()
+                if (staffId != null) {
+                    repository.incrementStaffReferral(staffId)
+                    // Müşteriye %10 hoş geldin kuponu
+                    val welcomeCoupon = CouponEntity(
+                        salonId = 0, // tüm salonlarda geçerli
+                        code = "HOSGELDIN_${newCustomerPhone.takeLast(4)}",
+                        discountType = "PERCENT",
+                        value = 10.0
+                    )
+                    repository.insertCoupon(welcomeCoupon)
+                    _notificationMessage.emit("Referanslı kayıt başarılı! İlk randevunuz için %10 kupon tanımlandı.")
+                }
+            } else if (refCode.startsWith("CUST_")) {
+                val referrerPhone = refCode.removePrefix("CUST_")
+                // Davet edene %15 kupon
+                val refCoupon = CouponEntity(
+                    salonId = 0,
+                    code = "DAVET_${referrerPhone.takeLast(4)}",
+                    discountType = "PERCENT",
+                    value = 15.0
+                )
+                // Davet edilene %10 kupon
+                val welcomeCoupon = CouponEntity(
+                    salonId = 0,
+                    code = "HOSGELDIN_${newCustomerPhone.takeLast(4)}",
+                    discountType = "PERCENT",
+                    value = 10.0
+                )
+                repository.insertCoupon(refCoupon)
+                repository.insertCoupon(welcomeCoupon)
+                _notificationMessage.emit("Referanslı üyelik! Hem size hem arkadaşınıza indirim kuponları tanımlandı.")
             }
         }
     }
@@ -442,6 +556,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun submitRating(appointmentId: Int, stars: Int, comment: String) {
         viewModelScope.launch {
             repository.rateAppointment(appointmentId, stars, comment)
+            
+            // Recalculate average rating for the salon
+            val appt = repository.getAppointmentById(appointmentId)
+            if (appt != null) {
+                val salonAppts = repository.getAppointmentsForSalonSync(appt.salonId)
+                val ratedAppts = salonAppts.filter { it.isRated || it.id == appointmentId }
+                val totalStars = ratedAppts.sumOf { if (it.id == appointmentId) stars else it.ratingStars }
+                val count = ratedAppts.size
+                val avgRating = if (count > 0) totalStars.toFloat() / count else 0.0f
+                
+                val salon = repository.getSalonById(appt.salonId)
+                if (salon != null) {
+                    val updatedSalon = salon.copy(rating = avgRating, reviewCount = count)
+                    repository.updateSalon(updatedSalon)
+                }
+            }
+            
             _notificationMessage.emit("Yorumunuz ve puanınız iletildi, teşekkürler!")
         }
     }
@@ -608,7 +739,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // Platform Admin triggers approval callback
     fun approveSalonByAdmin(salon: SalonEntity) {
         viewModelScope.launch {
-            val updated = salon.copy(isApproved = true)
+            val updated = salon.copy(isApproved = true, status = "APPROVED")
             repository.updateSalon(updated)
             _notificationMessage.emit("${salon.name} onaylandı.")
         }
@@ -616,9 +747,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun restrictSalonByAdmin(salon: SalonEntity) {
         viewModelScope.launch {
-            val updated = salon.copy(isApproved = false)
+            val updated = salon.copy(isApproved = false, status = "SUSPENDED")
             repository.updateSalon(updated)
             _notificationMessage.emit("${salon.name} kısıtlandı/yayından çekildi.")
+        }
+    }
+
+    fun rejectSalonByAdmin(salon: SalonEntity) {
+        viewModelScope.launch {
+            repository.deleteSalon(salon)
+            _notificationMessage.emit("${salon.name} başvurusu reddedildi.")
         }
     }
 

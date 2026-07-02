@@ -178,23 +178,68 @@ fun CustomerMainScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CustomerDiscoverScreen(viewModel: AppViewModel) {
-    val listSalons by viewModel.filteredSalons.collectAsState()
+    val listSalonsRaw by viewModel.filteredSalons.collectAsState()
     val searchTxt by viewModel.searchQuery.collectAsState()
     val selectedCat by viewModel.selectedCategoryFilter.collectAsState()
     val showOnlyFavs by viewModel.showOnlyFavorites.collectAsState()
+
+    var selectedTab by remember { mutableStateOf(0) } // 0: List, 1: Map
+    var selectedDistrict by remember { mutableStateOf("Tümü") }
+    var districtDropdownExpanded by remember { mutableStateOf(false) }
+    var gpsActive by remember { mutableStateOf(false) }
+    var selectedPinSalon by remember { mutableStateOf<SalonEntity?>(null) }
+
+    val listSalons = remember(listSalonsRaw, selectedDistrict, gpsActive) {
+        var result = listSalonsRaw
+        if (selectedDistrict != "Tümü" && selectedDistrict.isNotBlank()) {
+            result = result.filter { it.address.contains(selectedDistrict, ignoreCase = true) }
+        }
+        if (gpsActive) {
+            result = result.sortedBy { salon ->
+                when (salon.id) {
+                    1 -> 0.5
+                    2 -> 1.2
+                    3 -> 2.1
+                    4 -> 3.5
+                    else -> 5.0
+                }
+            }
+        }
+        result
+    }
+
+    fun getSimulatedDistance(salonId: Int, gpsActive: Boolean): String {
+        return if (gpsActive) {
+            when (salonId) {
+                1 -> "0.5 km uzakta"
+                2 -> "1.2 km uzakta"
+                3 -> "2.1 km uzakta"
+                4 -> "3.5 km uzakta"
+                else -> "5.0 km uzakta"
+            }
+        } else {
+            when (salonId) {
+                1 -> "1.2 km uzakta"
+                2 -> "2.4 km uzakta"
+                3 -> "3.1 km uzakta"
+                4 -> "4.2 km uzakta"
+                else -> "5.0 km uzakta"
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        // Location Selector Header Area (Sleek professional top banner)
+        // Location Selector Header Area with Dropdown & GPS Button
         Row(
             modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "Konumunuz",
                     fontSize = 11.sp,
@@ -202,29 +247,79 @@ fun CustomerDiscoverScreen(viewModel: AppViewModel) {
                     fontWeight = FontWeight.Bold
                 )
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.clickable {
-                        viewModel.triggerNotification("Konum Servisleri: En yakın dükkanlar listeleniyor.")
-                    }
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.LocationOn,
-                        contentDescription = "Konum",
-                        tint = Color(0xFF185C5C),
-                        modifier = Modifier.size(15.dp)
-                    )
-                    Text(
-                        text = " Beşiktaş, İstanbul",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = Color(0xFF242424)
-                    )
-                    Icon(
-                        imageVector = Icons.Default.KeyboardArrowDown,
-                        contentDescription = null,
-                        tint = Color(0xFF242424),
-                        modifier = Modifier.size(16.dp)
-                    )
+                    Box {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.clickable { districtDropdownExpanded = true }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.LocationOn,
+                                contentDescription = "Konum",
+                                tint = Color(0xFF185C5C),
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Text(
+                                text = " $selectedDistrict",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFF242424)
+                            )
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowDown,
+                                contentDescription = null,
+                                tint = Color(0xFF242424),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = districtDropdownExpanded,
+                            onDismissRequest = { districtDropdownExpanded = false }
+                        ) {
+                            listOf("Tümü", "Beşiktaş", "Kadıköy", "Çankaya").forEach { dist ->
+                                DropdownMenuItem(
+                                    text = { Text(dist) },
+                                    onClick = {
+                                        selectedDistrict = dist
+                                        districtDropdownExpanded = false
+                                        viewModel.triggerNotification("Bölge seçildi: $dist")
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.width(12.dp))
+                    
+                    // GPS Button
+                    Button(
+                        onClick = {
+                            gpsActive = !gpsActive
+                            if (gpsActive) {
+                                viewModel.triggerNotification("GPS aktif edildi! En yakın salonlar mesafeye göre listeleniyor.")
+                            } else {
+                                viewModel.triggerNotification("GPS devre dışı bırakıldı.")
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (gpsActive) Color(0xFF185C5C) else Color(0xFFE2E8F0),
+                            contentColor = if (gpsActive) Color.White else Color.DarkGray
+                        ),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.height(28.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.MyLocation,
+                                contentDescription = null,
+                                modifier = Modifier.size(12.dp),
+                                tint = if (gpsActive) Color.White else Color.DarkGray
+                            )
+                            Text(" GPS Kullan", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
 
@@ -245,7 +340,6 @@ fun CustomerDiscoverScreen(viewModel: AppViewModel) {
                     tint = Color(0xFF242424),
                     modifier = Modifier.size(20.dp)
                 )
-                // Red active circular notification dot
                 Box(
                     modifier = Modifier
                         .size(8.dp)
@@ -304,7 +398,6 @@ fun CustomerDiscoverScreen(viewModel: AppViewModel) {
 
             Spacer(modifier = Modifier.width(10.dp))
 
-            // Premium Teal filter search action block
             Box(
                 modifier = Modifier
                     .size(52.dp)
@@ -325,9 +418,9 @@ fun CustomerDiscoverScreen(viewModel: AppViewModel) {
 
         Spacer(modifier = Modifier.height(6.dp))
 
-        // Visual Graphic categories rounded icon selectors
+        // Categories list
         Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             val cats = listOf(
@@ -349,7 +442,7 @@ fun CustomerDiscoverScreen(viewModel: AppViewModel) {
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(56.dp)
+                            .size(50.dp)
                             .background(
                                 color = if (isSelected) Color(0xFF185C5C) else Color.White,
                                 shape = CircleShape
@@ -367,18 +460,39 @@ fun CustomerDiscoverScreen(viewModel: AppViewModel) {
                             imageVector = icon,
                             contentDescription = label,
                             tint = if (isSelected) Color.White else Color(0xFF185C5C),
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(22.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = label,
-                        fontSize = 12.sp,
+                        fontSize = 11.sp,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                         color = if (isSelected) Color(0xFF185C5C) else Color(0xFF797979)
                     )
                 }
             }
+        }
+
+        // View tabs (Liste Görünümü vs Harita Görünümü)
+        TabRow(
+            selectedTabIndex = selectedTab,
+            containerColor = Color.Transparent,
+            contentColor = Color(0xFF185C5C),
+            modifier = Modifier.padding(bottom = 12.dp)
+        ) {
+            Tab(
+                selected = selectedTab == 0,
+                onClick = { selectedTab = 0 },
+                text = { Text("Liste Görünümü", fontWeight = FontWeight.Bold, fontSize = 12.sp) },
+                icon = { Icon(Icons.Default.List, contentDescription = null, modifier = Modifier.size(20.dp)) }
+            )
+            Tab(
+                selected = selectedTab == 1,
+                onClick = { selectedTab = 1 },
+                text = { Text("Harita Görünümü", fontWeight = FontWeight.Bold, fontSize = 12.sp) },
+                icon = { Icon(Icons.Default.Map, contentDescription = null, modifier = Modifier.size(20.dp)) }
+            )
         }
 
         if (showOnlyFavs) {
@@ -407,45 +521,418 @@ fun CustomerDiscoverScreen(viewModel: AppViewModel) {
             Spacer(modifier = Modifier.height(12.dp))
         }
 
-        // List Grid
-        if (listSalons.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        Icons.Outlined.ContentCut,
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = Color.LightGray
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Aradığınız kriterde uygun işletme bulunamadı.",
-                        textAlign = TextAlign.Center,
-                        color = Color.Gray
-                    )
-                }
-            }
-        } else {
+        // Display List view or Map view
+        if (selectedTab == 0) {
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.weight(1f)
             ) {
-                items(listSalons) { salon ->
-                    SalonCard(
-                        salon = salon,
-                        onClick = {
-                            viewModel.selectedSalon.value = salon
-                            viewModel.navigateTo("SALON_DETAIL")
-                        },
-                        onFavClick = {
-                            viewModel.toggleFavoriteSalon(salon.id, salon.isFavorite)
+                // Section 1: Featured Salons (Öne Çıkanlar)
+                val featuredSalons = listSalons.filter { it.rating >= 4.8 }
+                if (featuredSalons.isNotEmpty()) {
+                    item {
+                        Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                            Text(
+                                text = "Öne Çıkan Salonlar",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                items(featuredSalons) { salon ->
+                                    Card(
+                                        onClick = {
+                                            viewModel.selectedSalon.value = salon
+                                            viewModel.navigateTo("SALON_DETAIL")
+                                        },
+                                        modifier = Modifier.width(180.dp),
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                                        border = BorderStroke(1.dp, Color(0xFFF1F5F9))
+                                    ) {
+                                        Column {
+                                            Box {
+                                                AsyncImage(
+                                                    model = salon.imageUrl,
+                                                    contentDescription = null,
+                                                    contentScale = ContentScale.Crop,
+                                                    modifier = Modifier.fillMaxWidth().height(90.dp)
+                                                )
+                                                Box(
+                                                    modifier = Modifier
+                                                        .padding(6.dp)
+                                                        .background(Color(0xFFD97706), RoundedCornerShape(4.dp))
+                                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                                        .align(Alignment.TopStart)
+                                                ) {
+                                                    Text("Sponsorlu", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                                }
+                                            }
+                                            Column(modifier = Modifier.padding(8.dp)) {
+                                                Text(
+                                                    text = salon.name,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 12.sp,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(Icons.Filled.Star, null, tint = Color(0xFFFFB300), modifier = Modifier.size(10.dp))
+                                                    Text(" ${salon.rating}", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
+                    }
+                }
+                
+                // Section 2: Reklam Banner Area
+                item {
+                    val ads by viewModel.businessAds.collectAsState()
+                    val activeAds = ads.filter { it.isActive }
+                    
+                    if (activeAds.isNotEmpty()) {
+                        val ad = activeAds.first()
+                        Card(
+                            onClick = {
+                                if (ad.targetSalonId != null) {
+                                    val targetSalon = listSalonsRaw.find { it.id == ad.targetSalonId }
+                                    if (targetSalon != null) {
+                                        viewModel.selectedSalon.value = targetSalon
+                                        viewModel.navigateTo("SALON_DETAIL")
+                                    }
+                                } else {
+                                    viewModel.triggerNotification("Reklam Kampanyası: ${ad.title}")
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(100.dp)
+                                .padding(vertical = 4.dp),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                AsyncImage(
+                                    model = if (ad.imageUrl.isNotBlank()) ad.imageUrl else "https://images.unsplash.com/photo-1522337360788-8b13edd793be?auto=format&fit=crop&w=800&q=80",
+                                    contentDescription = ad.title,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f))))
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .padding(8.dp)
+                                        .background(Color.Red, RoundedCornerShape(4.dp))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        .align(Alignment.TopEnd)
+                                ) {
+                                    Text("KAMPANYA", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Column(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomStart)
+                                        .padding(12.dp)
+                                ) {
+                                    Text(
+                                        text = ad.title,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp
+                                    )
+                                    Text(
+                                        text = "Randevu için hemen tıkla!",
+                                        color = Color.White.copy(alpha = 0.8f),
+                                        fontSize = 10.sp
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        // Fallback ad
+                        Card(
+                            onClick = {
+                                val targetSalon = listSalonsRaw.find { it.id == 1 }
+                                if (targetSalon != null) {
+                                    viewModel.selectedSalon.value = targetSalon
+                                    viewModel.navigateTo("SALON_DETAIL")
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(90.dp)
+                                .padding(vertical = 4.dp),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                AsyncImage(
+                                    model = "https://images.unsplash.com/photo-1522337360788-8b13edd793be?auto=format&fit=crop&w=800&q=80",
+                                    contentDescription = "Özel Fırsat",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f))))
+                                )
+                                Text(
+                                    text = "Makas & Tarak Salonu'nda Hafta İçi %20 Fırsatını Kaçırmayın!",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier
+                                        .align(Alignment.BottomStart)
+                                        .padding(12.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                item {
+                    Text(
+                        text = "Tüm Salonlar",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.padding(top = 8.dp)
                     )
+                }
+
+                if (listSalons.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    Icons.Outlined.ContentCut,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(48.dp),
+                                    tint = Color.LightGray
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Aradığınız kriterde uygun işletme bulunamadı.",
+                                    textAlign = TextAlign.Center,
+                                    color = Color.Gray,
+                                    fontSize = 13.sp
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    items(listSalons) { salon ->
+                        val distanceText = getSimulatedDistance(salon.id, gpsActive)
+                        SalonCard(
+                            salon = salon,
+                            distanceLabel = distanceText,
+                            onClick = {
+                                viewModel.selectedSalon.value = salon
+                                viewModel.navigateTo("SALON_DETAIL")
+                            },
+                            onFavClick = {
+                                viewModel.toggleFavoriteSalon(salon.id, salon.isFavorite)
+                            }
+                        )
+                    }
+                }
+            }
+        } else {
+            // Harita Görünümü
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .border(BorderStroke(1.dp, Color(0xFFE2E8F0)), RoundedCornerShape(16.dp))
+            ) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    drawRect(color = Color(0xFFE6F2F2))
+                    drawRect(
+                        color = Color(0xFFBFE0E0),
+                        topLeft = androidx.compose.ui.geometry.Offset(0f, size.height * 0.75f),
+                        size = androidx.compose.ui.geometry.Size(size.width, size.height * 0.25f)
+                    )
+                    drawRoundRect(
+                        color = Color(0xFFD4ECE1),
+                        topLeft = androidx.compose.ui.geometry.Offset(size.width * 0.1f, size.height * 0.1f),
+                        size = androidx.compose.ui.geometry.Size(size.width * 0.3f, size.height * 0.25f),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(20f, 20f)
+                    )
+                    drawRoundRect(
+                        color = Color(0xFFD4ECE1),
+                        topLeft = androidx.compose.ui.geometry.Offset(size.width * 0.6f, size.height * 0.4f),
+                        size = androidx.compose.ui.geometry.Size(size.width * 0.3f, size.height * 0.2f),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(20f, 20f)
+                    )
+
+                    val roadColor = Color.White
+                    val roadOutlineColor = Color(0xFFCBD5E1)
+                    
+                    drawLine(
+                        color = roadOutlineColor,
+                        start = androidx.compose.ui.geometry.Offset(0f, size.height * 0.5f),
+                        end = androidx.compose.ui.geometry.Offset(size.width, size.height * 0.5f),
+                        strokeWidth = 32f
+                    )
+                    drawLine(
+                        color = roadColor,
+                        start = androidx.compose.ui.geometry.Offset(0f, size.height * 0.5f),
+                        end = androidx.compose.ui.geometry.Offset(size.width, size.height * 0.5f),
+                        strokeWidth = 24f
+                    )
+                    
+                    drawLine(
+                        color = roadOutlineColor,
+                        start = androidx.compose.ui.geometry.Offset(size.width * 0.5f, 0f),
+                        end = androidx.compose.ui.geometry.Offset(size.width * 0.5f, size.height * 0.75f),
+                        strokeWidth = 32f
+                    )
+                    drawLine(
+                        color = roadColor,
+                        start = androidx.compose.ui.geometry.Offset(size.width * 0.5f, 0f),
+                        end = androidx.compose.ui.geometry.Offset(size.width * 0.5f, size.height * 0.75f),
+                        strokeWidth = 24f
+                    )
+                }
+
+                listSalons.forEach { salon ->
+                    val (offsetX, offsetY) = when (salon.id) {
+                        1 -> Pair(60.dp, 80.dp)
+                        2 -> Pair(200.dp, 150.dp)
+                        3 -> Pair(110.dp, 230.dp)
+                        4 -> Pair(250.dp, 50.dp)
+                        else -> Pair(150.dp, 150.dp)
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .offset(x = offsetX, y = offsetY)
+                            .size(36.dp)
+                            .background(
+                                color = if (selectedPinSalon?.id == salon.id) Color(0xFF185C5C) else Color.White,
+                                shape = CircleShape
+                            )
+                            .border(
+                                BorderStroke(
+                                    2.dp,
+                                    if (selectedPinSalon?.id == salon.id) Color.White else Color(0xFF185C5C)
+                                ),
+                                CircleShape
+                            )
+                            .clickable {
+                                selectedPinSalon = salon
+                                viewModel.triggerNotification("Harita: ${salon.name} seçildi.")
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = salon.name,
+                            tint = if (selectedPinSalon?.id == salon.id) Color.White else Color(0xFF185C5C),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+
+                // Quick Preview Card
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = selectedPinSalon != null,
+                    enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                    exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .padding(12.dp)
+                ) {
+                    selectedPinSalon?.let { salon ->
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            elevation = CardDefaults.cardElevation(8.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                AsyncImage(
+                                    model = salon.imageUrl,
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .size(60.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                )
+                                
+                                Spacer(modifier = Modifier.width(12.dp))
+                                
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = salon.name,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        color = MaterialTheme.colorScheme.secondary
+                                    )
+                                    Text(
+                                        text = when (salon.category) {
+                                            "ERKEK" -> "Erkek Berberi"
+                                            "KADIN" -> "Kadın Kuaförü"
+                                            else -> "Unisex Salon"
+                                        },
+                                        fontSize = 11.sp,
+                                        color = Color.Gray
+                                    )
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Filled.Star, null, tint = Color(0xFFFFB300), modifier = Modifier.size(12.dp))
+                                        Text(" ${salon.rating} (${salon.reviewCount})", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                                
+                                Column(horizontalAlignment = Alignment.End) {
+                                    IconButton(
+                                        onClick = { selectedPinSalon = null },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(Icons.Default.Close, null, tint = Color.Gray, modifier = Modifier.size(16.dp))
+                                    }
+                                    
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    
+                                    Button(
+                                        onClick = {
+                                            viewModel.selectedSalon.value = salon
+                                            viewModel.navigateTo("SALON_DETAIL")
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF185C5C)),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.height(32.dp)
+                                    ) {
+                                        Text("Randevu Al", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -455,6 +942,7 @@ fun CustomerDiscoverScreen(viewModel: AppViewModel) {
 @Composable
 fun SalonCard(
     salon: SalonEntity,
+    distanceLabel: String,
     onClick: () -> Unit,
     onFavClick: () -> Unit
 ) {
@@ -485,7 +973,7 @@ fun SalonCard(
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                         .align(Alignment.BottomStart)
                 ) {
-                    Text("1.2 km uzakta", color = Color.White, fontSize = 11.sp)
+                    Text(distanceLabel, color = Color.White, fontSize = 11.sp)
                 }
 
                 // Category tag badge
@@ -599,94 +1087,306 @@ fun SalonDetailScreen(viewModel: AppViewModel) {
     val salon = viewModel.selectedSalon.collectAsState().value ?: return
     val services by viewModel.activeSalonServices.collectAsState()
     val staffList by viewModel.activeSalonStaff.collectAsState()
+    val chosenServices by viewModel.bookingSelectedServices.collectAsState()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-    ) {
-        // Upper Poster
-        Box(modifier = Modifier.height(220.dp)) {
-            AsyncImage(
-                model = salon.imageUrl,
-                contentDescription = salon.name,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .fillMaxHeight()
-            )
-            // Back button
-            IconButton(
-                onClick = { viewModel.navigateTo("CUSTOMER") },
-                modifier = Modifier
-                    .padding(16.dp)
-                    .background(Color.Black.copy(alpha = 0.5f), CircleShape)
-            ) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Geri", tint = Color.White)
-            }
-        }
-
-        // Title and description card block
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = salon.name,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.secondary,
-                    modifier = Modifier.weight(1f)
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(bottom = 96.dp)
+        ) {
+            // Upper Poster
+            Box(modifier = Modifier.height(220.dp)) {
+                AsyncImage(
+                    model = salon.imageUrl,
+                    contentDescription = salon.name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight()
                 )
-                IconButton(onClick = { viewModel.toggleFavoriteSalon(salon.id, salon.isFavorite) }) {
-                    Icon(
-                        imageVector = if (salon.isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                        contentDescription = null,
-                        tint = if (salon.isFavorite) Color.Red else Color.LightGray
-                    )
+                // Back button
+                IconButton(
+                    onClick = { viewModel.navigateTo("CUSTOMER") },
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                ) {
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Geri", tint = Color.White)
                 }
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
-                Icon(Icons.Filled.Star, null, tint = Color(0xFFFFB300), modifier = Modifier.size(18.dp))
+            // Title and description card block
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = salon.name,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = { viewModel.toggleFavoriteSalon(salon.id, salon.isFavorite) }) {
+                        Icon(
+                            imageVector = if (salon.isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                            contentDescription = null,
+                            tint = if (salon.isFavorite) Color.Red else Color.LightGray
+                        )
+                    }
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
+                    Icon(Icons.Filled.Star, null, tint = Color(0xFFFFB300), modifier = Modifier.size(18.dp))
+                    Text(
+                        text = "${salon.rating} (${salon.reviewCount} Değerlendirme)",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(start = 4.dp)
+                    )
+                }
+
                 Text(
-                    text = "${salon.rating} (${salon.reviewCount} Değerlendirme)",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(start = 4.dp)
+                    text = "📍 ${salon.address}",
+                    fontSize = 13.sp,
+                    color = Color.DarkGray,
+                    modifier = Modifier.padding(bottom = 8.dp)
                 )
-            }
 
-            Text(
-                text = "📍 ${salon.address}",
-                fontSize = 13.sp,
-                color = Color.DarkGray,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
+                HorizontalDivider()
 
-            HorizontalDivider()
+                Spacer(modifier = Modifier.height(16.dp))
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Services list section
-            Text(
-                text = "Hizmetlerimiz",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.secondary,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-
-            if (services.isEmpty()) {
+                // Services list section
                 Text(
-                    text = "Henüz tanımlanmış bir hizmet bulunamadı.",
-                    color = Color.Gray,
-                    fontSize = 14.sp
+                    text = "Hizmetlerimiz",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.padding(bottom = 8.dp)
                 )
-            } else {
-                services.forEach { service ->
+
+                if (services.isEmpty()) {
+                    Text(
+                        text = "Henüz tanımlanmış bir hizmet bulunamadı.",
+                        color = Color.Gray,
+                        fontSize = 14.sp
+                    )
+                } else {
+                    services.forEach { service ->
+                        val isSelected = chosenServices.any { it.id == service.id }
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .clickable { viewModel.toggleServiceSelection(service) },
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (isSelected) Color(0xFF185C5C).copy(alpha = 0.08f) else Color.White
+                            ),
+                            border = if (isSelected) BorderStroke(2.dp, Color(0xFF185C5C)) else BorderStroke(1.dp, Color(0xFFE2E8F0))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = service.name,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 15.sp,
+                                        color = MaterialTheme.colorScheme.secondary
+                                    )
+                                    Text(
+                                        text = "Süre: ${service.durationMinutes} dk",
+                                        fontSize = 12.sp,
+                                        color = Color.Gray
+                                    )
+                                    if (service.description.isNotBlank()) {
+                                        Text(
+                                            text = service.description,
+                                            fontSize = 11.sp,
+                                            color = Color.LightGray,
+                                            lineHeight = 15.sp
+                                        )
+                                    }
+                                }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "₺${service.price.toInt()}",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 16.sp,
+                                        color = if (isSelected) Color(0xFF185C5C) else MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(end = 8.dp)
+                                    )
+                                    if (isSelected) {
+                                        Icon(
+                                            imageVector = Icons.Default.CheckCircle,
+                                            contentDescription = "Seçildi",
+                                            tint = Color(0xFF185C5C),
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Staff list section
+                Text(
+                    text = "Uzman Personel Kadromuz",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                if (staffList.isEmpty()) {
+                    Text(
+                        text = "Hizmet veren aktif personel bulunmamaktadır.",
+                        color = Color.Gray,
+                        fontSize = 14.sp
+                    )
+                } else {
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(staffList) { staff ->
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier
+                                    .width(100.dp)
+                                    .clickable {
+                                        viewModel.selectedStaffDetail.value = staff
+                                        viewModel.navigateTo("ARTIST_DETAIL")
+                                    }
+                                    .background(Color.White, RoundedCornerShape(12.dp))
+                                    .border(BorderStroke(1.dp, Color(0xFFF1F5F9)), RoundedCornerShape(12.dp))
+                                    .padding(8.dp)
+                            ) {
+                                // Avatar placeholder
+                                Box(
+                                    modifier = Modifier
+                                        .size(54.dp)
+                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.Person, null, tint = MaterialTheme.colorScheme.primary)
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = staff.name,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = staff.role,
+                                    fontSize = 10.sp,
+                                    color = Color.Gray,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Filled.Star, null, tint = Color(0xFFFFB300), modifier = Modifier.size(10.dp))
+                                    Text(" ${staff.rating}", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Gallery Section
+                Text(
+                    text = "Galeri ve Tasarımlarımız",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    val listOptions = listOf(
+                        "Ombre Balayage",
+                        "Kalıcı Fön / Keratin",
+                        "Pixie Saç Kesimi",
+                        "Gelin Saçı & Makyaj"
+                    )
+                    items(listOptions) { style ->
+                        Card(
+                            modifier = Modifier
+                                .width(130.dp)
+                                .clickable { viewModel.triggerNotification("$style tasarımı görsele tıklandı.") },
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            border = BorderStroke(1.dp, Color(0xFFF1F5F9))
+                        ) {
+                            Column {
+                                // Design mock image icon indicator
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(85.dp)
+                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Image,
+                                        contentDescription = style,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                                Text(
+                                    text = style,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.secondary,
+                                    modifier = Modifier.padding(8.dp),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Reviews / Testimonials Section
+                val allAppointments by viewModel.adminAllAppointments.collectAsState()
+                val dbReviews = allAppointments.filter { it.salonId == salon.id && it.isRated }
+                
+                val reviewers = if (dbReviews.isNotEmpty()) {
+                    dbReviews.map { Triple(it.customerName, it.ratingComment, String.format("%.1f", it.ratingStars.toFloat())) }
+                } else {
+                    listOf(
+                        Triple("Elif Karaca", "Beste hanım harikalar yarattı! Ombre saç boyama işleminden aşırı memnun kaldım. Kesinlikle tavsiye ederim.", "5.0"),
+                        Triple("Deniz Yılmaz", "Personel saç kesiminde usta. Randevu saatinde hemen aldılar ve salon tertemizdi.", "4.8")
+                    )
+                }
+
+                Text(
+                    text = "Müşteri Yorumları (${String.format("%.1f", salon.rating)}/5)",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                reviewers.forEach { (user, comment, ratingVal) ->
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -694,227 +1394,95 @@ fun SalonDetailScreen(viewModel: AppViewModel) {
                         colors = CardDefaults.cardColors(containerColor = Color.White),
                         border = BorderStroke(1.dp, Color(0xFFE2E8F0))
                     ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = service.name,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 15.sp,
-                                    color = MaterialTheme.colorScheme.secondary
-                                )
-                                Text(
-                                    text = "Süre: ${service.durationMinutes} dk",
-                                    fontSize = 12.sp,
-                                    color = Color.Gray
-                                )
-                                if (service.description.isNotBlank()) {
-                                    Text(
-                                        text = service.description,
-                                        fontSize = 11.sp,
-                                        color = Color.LightGray,
-                                        lineHeight = 15.sp
-                                    )
-                                }
-                            }
-                            Text(
-                                text = "₺${service.price.toInt()}",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Staff list section
-            Text(
-                text = "Uzman Personel Kadromuz",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.secondary,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-
-            if (staffList.isEmpty()) {
-                Text(
-                    text = "Hizmet veren aktif personel bulunmamaktadır.",
-                    color = Color.Gray,
-                    fontSize = 14.sp
-                )
-            } else {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(staffList) { staff ->
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier
-                                .width(100.dp)
-                                .clickable {
-                                    viewModel.selectedStaffDetail.value = staff
-                                    viewModel.navigateTo("ARTIST_DETAIL")
-                                }
-                                .background(Color.White, RoundedCornerShape(12.dp))
-                                .border(BorderStroke(1.dp, Color(0xFFF1F5F9)), RoundedCornerShape(12.dp))
-                                .padding(8.dp)
-                        ) {
-                            // Avatar placeholder
-                            Box(
-                                modifier = Modifier
-                                    .size(54.dp)
-                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), CircleShape),
-                                contentAlignment = Alignment.Center
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.Person, null, tint = MaterialTheme.colorScheme.primary)
+                                Text(user, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = MaterialTheme.colorScheme.secondary)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Filled.Star, "Rating", tint = Color(0xFFFFB300), modifier = Modifier.size(12.dp))
+                                    Text(" $ratingVal", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.DarkGray)
+                                }
                             }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = staff.name,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = staff.role,
-                                fontSize = 10.sp,
-                                color = Color.Gray,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Filled.Star, null, tint = Color(0xFFFFB300), modifier = Modifier.size(10.dp))
-                                Text(" ${staff.rating}", fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(comment, fontSize = 11.sp, color = Color.Gray, lineHeight = 16.sp)
                         }
                     }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(32.dp))
 
-            // Gallery Section
-            Text(
-                text = "Galeri ve Tasarımlarımız",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.secondary,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                val listOptions = listOf(
-                    "Ombre Balayage",
-                    "Kalıcı Fön / Keratin",
-                    "Pixie Saç Kesimi",
-                    "Gelin Saçı & Makyaj"
-                )
-                items(listOptions) { style ->
-                    Card(
+                // Booking action CTA Footer
+                if (chosenServices.isEmpty()) {
+                    Button(
+                        onClick = {
+                            viewModel.triggerNotification("Lütfen yukarıdaki listemizden en az bir hizmet seçin.")
+                        },
                         modifier = Modifier
-                            .width(130.dp)
-                            .clickable { viewModel.triggerNotification("$style tasarımı görsele tıklandı.") },
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                        border = BorderStroke(1.dp, Color(0xFFF1F5F9))
+                            .fillMaxWidth()
+                            .height(54.dp),
+                        shape = RoundedCornerShape(27.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Gray)
                     ) {
-                        Column {
-                            // Design mock image icon indicator
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(85.dp)
-                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Image,
-                                    contentDescription = style,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-                            Text(
-                                text = style,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.secondary,
-                                modifier = Modifier.padding(8.dp),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
+                        Text("Lütfen Hizmet Seçin", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
                     }
+                } else {
+                    Spacer(modifier = Modifier.height(54.dp))
                 }
             }
+        }
 
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Reviews / Testimonials Section
-            Text(
-                text = "Müşteri Yorumları (4.9/5)",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.secondary,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-
-            val reviewers = listOf(
-                Triple("Elif Karaca", "Beste hanım harikalar yarattı! Ombre saç boyama işleminden aşırı memnun kaldım. Kesinlikle tavsiye ederim.", "5.0"),
-                Triple("Deniz Yılmaz", "Personel saç kesiminde usta. Randevu saatinde hemen aldılar ve salon tertemizdi.", "4.8")
-            )
-            reviewers.forEach { (user, comment, ratingVal) ->
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    border = BorderStroke(1.dp, Color(0xFFE2E8F0))
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(user, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = MaterialTheme.colorScheme.secondary)
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Filled.Star, "Rating", tint = Color(0xFFFFB300), modifier = Modifier.size(12.dp))
-                                Text(" $ratingVal", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.DarkGray)
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(comment, fontSize = 11.sp, color = Color.Gray, lineHeight = 16.sp)
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // Booking action CTA Footer
-            Button(
-                onClick = {
-                    viewModel.bookingSelectedServices.value = emptyList()
-                    viewModel.bookingSelectedStaff.value = null
-                    viewModel.navigateTo("BOOKING_WIZARD")
-                },
+        // Sticky Bottom Selected Services Summary Bar
+        AnimatedVisibility(
+            visible = chosenServices.isNotEmpty(),
+            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+        ) {
+            Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag("appointment_start_button")
-                    .height(54.dp),
-                shape = RoundedCornerShape(27.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF185C5C))
+                    .padding(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(8.dp),
+                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                shape = RoundedCornerShape(16.dp)
             ) {
-                Text("Hemen Randevu Al", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text(
+                            text = "${chosenServices.size} Hizmet Seçildi",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = Color(0xFF185C5C)
+                        )
+                        Text(
+                            text = "Toplam: ₺${chosenServices.sumOf { it.price }.toInt()} | ${chosenServices.sumOf { it.durationMinutes }} dk",
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 15.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    Button(
+                        onClick = {
+                            viewModel.bookingSelectedStaff.value = null
+                            viewModel.navigateTo("BOOKING_WIZARD")
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF185C5C)),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Randevu Saatini Seç", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
             }
         }
     }
@@ -1194,94 +1762,251 @@ fun BookingWizardScreen(viewModel: AppViewModel) {
                             modifier = Modifier.padding(bottom = 12.dp)
                         )
 
-                        // Date Picker Input Simulator (Simplified but fully functional)
-                        Text("Tarih Seçin", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        val calendarRef = Calendar.getInstance()
-                        val todayStr = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).format(calendarRef.time)
+                        // Date Selection with 14-day Horizontal Strip & DatePicker Trigger
+                        val daysList = remember {
+                            val list = mutableListOf<Triple<String, String, String>>() // dayName, dayNum, fullDateString
+                            val cal = Calendar.getInstance()
+                            val sdfName = SimpleDateFormat("EEE", Locale("tr"))
+                            val sdfNum = SimpleDateFormat("dd", Locale.getDefault())
+                            val sdfFull = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault())
+                            for (i in 0 until 14) {
+                                val dayName = sdfName.format(cal.time)
+                                val dayNum = sdfNum.format(cal.time)
+                                val fullDate = sdfFull.format(cal.time)
+                                list.add(Triple(dayName, dayNum, fullDate))
+                                cal.add(Calendar.DAY_OF_YEAR, 1)
+                            }
+                            list
+                        }
 
-                        calendarRef.add(Calendar.DAY_OF_YEAR, 1)
-                        val tomStr = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).format(calendarRef.time)
-
-                        calendarRef.add(Calendar.DAY_OF_YEAR, 1)
-                        val dayAfterStr = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).format(calendarRef.time)
+                        val context = LocalContext.current
+                        val openDatePicker = {
+                            val calendar = Calendar.getInstance()
+                            if (chosenDate.isNotEmpty()) {
+                                try {
+                                    val sdf = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault())
+                                    sdf.parse(chosenDate)?.let {
+                                        calendar.time = it
+                                    }
+                                } catch (e: Exception) {}
+                            }
+                            android.app.DatePickerDialog(
+                                context,
+                                { _, year, month, dayOfMonth ->
+                                    val selectedCal = Calendar.getInstance().apply {
+                                        set(Calendar.YEAR, year)
+                                        set(Calendar.MONTH, month)
+                                        set(Calendar.DAY_OF_MONTH, dayOfMonth)
+                                    }
+                                    val formattedDate = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).format(selectedCal.time)
+                                    viewModel.bookingSelectedDate.value = formattedDate
+                                    viewModel.bookingSelectedTime.value = "" // Reset chosen time when date changes
+                                },
+                                calendar.get(Calendar.YEAR),
+                                calendar.get(Calendar.MONTH),
+                                calendar.get(Calendar.DAY_OF_MONTH)
+                            ).show()
+                        }
 
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp)
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            listOf(todayStr, tomStr, dayAfterStr).forEach { dStr ->
-                                val isSel = chosenDate == dStr
-                                Card(
-                                    onClick = { viewModel.bookingSelectedDate.value = dStr },
-                                    modifier = Modifier.weight(1f),
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = if (isSel) MaterialTheme.colorScheme.primary else Color.White
-                                    ),
-                                    border = BorderStroke(1.dp, Color(0xFFCBD5E1))
-                                ) {
-                                    Column(
-                                        modifier = Modifier.padding(12.dp),
-                                        horizontalAlignment = Alignment.CenterHorizontally
+                            Text("Tarih Seçin", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            if (chosenDate.isNotEmpty()) {
+                                Text(
+                                    text = chosenDate,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF185C5C)
+                                )
+                            }
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                        ) {
+                            LazyRow(
+                                modifier = Modifier.weight(1f),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                contentPadding = PaddingValues(end = 8.dp)
+                            ) {
+                                items(daysList) { (dayName, dayNum, fullDate) ->
+                                    val isSel = chosenDate == fullDate
+                                    Card(
+                                        onClick = { 
+                                            viewModel.bookingSelectedDate.value = fullDate
+                                            viewModel.bookingSelectedTime.value = "" // Reset chosen time when date changes
+                                        },
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = if (isSel) Color(0xFF185C5C) else Color.White
+                                        ),
+                                        border = BorderStroke(1.dp, if (isSel) Color(0xFF185C5C) else Color(0xFFE2E8F0)),
+                                        modifier = Modifier.width(60.dp)
                                     ) {
-                                        Text(
-                                            text = if (dStr == todayStr) "Bugün" else if (dStr == tomStr) "Yarın" else "Gelecek",
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 12.sp,
-                                            color = if (isSel) Color.Black else Color.Gray
-                                        )
-                                        Text(
-                                            text = dStr.substringBeforeLast(".2026"),
-                                            fontSize = 11.sp,
-                                            color = if (isSel) Color.Black else Color.DarkGray
-                                        )
+                                        Column(
+                                            modifier = Modifier.padding(vertical = 12.dp, horizontal = 4.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            Text(
+                                                text = dayName.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale("tr")) else it.toString() },
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 11.sp,
+                                                color = if (isSel) Color.White else Color.Gray,
+                                                textAlign = TextAlign.Center,
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(
+                                                text = dayNum,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                fontSize = 16.sp,
+                                                color = if (isSel) Color.White else Color(0xFF242424),
+                                                textAlign = TextAlign.Center,
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+                                        }
                                     }
                                 }
+                            }
+                            
+                            IconButton(
+                                onClick = { openDatePicker() },
+                                modifier = Modifier
+                                    .size(50.dp)
+                                    .background(Color.White, RoundedCornerShape(12.dp))
+                                    .border(BorderStroke(1.dp, Color(0xFFE2E8F0)), RoundedCornerShape(12.dp))
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.DateRange,
+                                    contentDescription = "Takvimden Seç",
+                                    tint = Color(0xFF185C5C)
+                                )
                             }
                         }
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // Hourly Slots Select pills
+                        // Hourly Slots Select Grid (30 minutes intervals between 09:00 and 20:00)
                         Text("Müsait Saat Slotları", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        // We replace the hardcoded time list with a dynamically calculated availability slot list.
-                        // This filters out slots that conflict with existing appointments on the chosen date for the selected staff member.
-                        val hourlySlots = remember(allAppointments, chosenDate, chosenStaff, chosenServices) {
-                            val currentStaff = chosenStaff
-                            if (currentStaff != null) {
-                                val staffAppts = allAppointments.filter { it.salonId == salon.id && it.staffId == currentStaff.id && it.date == chosenDate && it.status != "REJECTED" }
-                                viewModel.calculateAvailableSlots(salon.workingHours, staffAppts, totalDuration)
-                            } else {
-                                staffList.flatMap { staff ->
-                                    val staffAppts = allAppointments.filter { it.salonId == salon.id && it.staffId == staff.id && it.date == chosenDate && it.status != "REJECTED" }
-                                    viewModel.calculateAvailableSlots(salon.workingHours, staffAppts, totalDuration)
-                                }.distinct().sorted()
+                        val localParseTime = { timeStr: String ->
+                            val parts = timeStr.trim().split(":")
+                            if (parts.size >= 2) {
+                                (parts[0].toIntOrNull() ?: 0) * 60 + (parts[1].toIntOrNull() ?: 0)
+                            } else 0
+                        }
+
+                        val isWithinWorkingHours = { slotTime: String ->
+                            if (salon.workingHours.isBlank()) true
+                            else {
+                                val parts = salon.workingHours.split("-")
+                                if (parts.size == 2) {
+                                    val startWork = localParseTime(parts[0].trim())
+                                    val endWork = localParseTime(parts[1].trim())
+                                    val slotStart = localParseTime(slotTime)
+                                    slotStart >= startWork && slotStart < endWork
+                                } else true
                             }
                         }
 
-                        // Wrap layout
-                        Column {
-                            val rows = hourlySlots.chunked(4)
-                            rows.forEach { rowSlots ->
+                        val approvedAppts = remember(allAppointments, chosenDate, chosenStaff) {
+                            val currentStaff = chosenStaff
+                            if (currentStaff != null) {
+                                allAppointments.filter { 
+                                    it.salonId == salon.id && 
+                                    it.staffId == currentStaff.id && 
+                                    it.date == chosenDate && 
+                                    (it.status == "APPROVED" || it.status == "COMPLETED")
+                                }
+                            } else {
+                                allAppointments.filter { 
+                                    it.salonId == salon.id && 
+                                    it.date == chosenDate && 
+                                    (it.status == "APPROVED" || it.status == "COMPLETED")
+                                }
+                            }
+                        }
+
+                        val isSlotBooked = { slotTime: String ->
+                            val slotStart = localParseTime(slotTime)
+                            val slotEnd = slotStart + totalDuration.coerceAtLeast(30)
+                            
+                            val currentStaff = chosenStaff
+                            if (currentStaff != null) {
+                                approvedAppts.any { appt ->
+                                    if (appt.staffId == currentStaff.id) {
+                                        val apptStart = localParseTime(appt.time)
+                                        val apptEnd = apptStart + appt.totalDuration
+                                        slotStart < apptEnd && apptStart < slotEnd
+                                    } else false
+                                }
+                            } else {
+                                if (staffList.isEmpty()) false
+                                else {
+                                    staffList.all { staff ->
+                                        approvedAppts.any { appt ->
+                                            if (appt.staffId == staff.id) {
+                                                val apptStart = localParseTime(appt.time)
+                                                val apptEnd = apptStart + appt.totalDuration
+                                                slotStart < apptEnd && apptStart < slotEnd
+                                            } else false
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        val slotsList = listOf(
+                            "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
+                            "12:00", "12:30", "13:00", "13:30", "14:00", "14:30",
+                            "15:00", "15:30", "16:00", "16:30", "17:00", "17:30",
+                            "18:00", "18:30", "19:00", "19:30", "20:00"
+                        )
+
+                        val chunkedSlots = slotsList.chunked(4)
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            chunkedSlots.forEach { rowSlots ->
                                 Row(
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                    modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     rowSlots.forEach { slotTime ->
+                                        val isBooked = isSlotBooked(slotTime)
+                                        val isWithinHours = isWithinWorkingHours(slotTime)
                                         val isSel = chosenTime == slotTime
+                                        val isDisabled = isBooked || !isWithinHours
+                                        
                                         Card(
-                                            onClick = { viewModel.bookingSelectedTime.value = slotTime },
+                                            onClick = { 
+                                                if (!isDisabled) {
+                                                    viewModel.bookingSelectedTime.value = slotTime 
+                                                }
+                                            },
                                             modifier = Modifier
                                                 .weight(1f)
                                                 .height(44.dp)
                                                 .testTag("time_slot_button_$slotTime"),
                                             colors = CardDefaults.cardColors(
-                                                containerColor = if (isSel) MaterialTheme.colorScheme.primary else Color.White
+                                                containerColor = when {
+                                                    isDisabled -> Color(0xFFE2E8F0)
+                                                    isSel -> Color(0xFF185C5C)
+                                                    else -> Color.White
+                                                }
                                             ),
-                                            border = BorderStroke(1.dp, Color(0xFFCBD5E1))
+                                            border = BorderStroke(
+                                                width = 1.dp,
+                                                color = when {
+                                                    isDisabled -> Color(0xFFCBD5E1)
+                                                    isSel -> Color(0xFF185C5C)
+                                                    else -> Color(0xFFCBD5E1)
+                                                }
+                                            ),
+                                            enabled = !isDisabled
                                         ) {
                                             Box(
                                                 modifier = Modifier.fillMaxSize(),
@@ -1291,12 +2016,15 @@ fun BookingWizardScreen(viewModel: AppViewModel) {
                                                     text = slotTime,
                                                     fontSize = 12.sp,
                                                     fontWeight = FontWeight.Bold,
-                                                    color = if (isSel) Color.Black else Color.Black
+                                                    color = when {
+                                                        isDisabled -> Color.Gray
+                                                        isSel -> Color.White
+                                                        else -> Color(0xFF242424)
+                                                    }
                                                 )
                                             }
                                         }
                                     }
-                                    // Pad remaining spaces on less slots
                                     if (rowSlots.size < 4) {
                                         Spacer(modifier = Modifier.weight((4 - rowSlots.size).toFloat()))
                                     }
@@ -2113,6 +2841,129 @@ fun CustomerProfileScreen(viewModel: AppViewModel) {
                         Text(" WhatsApp Bildirimi", fontSize = 14.sp, modifier = Modifier.padding(start = 8.dp))
                     }
                     Switch(checked = activeWpPref, onCheckedChange = { activeWpPref = it })
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Arkadaşını Davet Et Section
+        Text("Arkadaşını Davet Et", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MaterialTheme.colorScheme.secondary)
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFF1FDFD)),
+            border = BorderStroke(1.dp, Color(0xFF185C5C).copy(alpha = 0.3f)),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                horizontalAlignment = Alignment.Start
+            ) {
+                Text(
+                    text = "🎁 Birlikte Kazanın!",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = Color(0xFF185C5C)
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Arkadaşını Kuaförüm'e davet et; arkadaşın ilk randevusunda %10 indirim kazansın, sen ise %15 indirim kuponu kazan!",
+                    fontSize = 12.sp,
+                    color = Color.DarkGray,
+                    lineHeight = 16.sp
+                )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Referans Kodu alanı
+                val refCode = "CUST_${phone.replace(" ", "")}"
+                Text(
+                    text = "Referans Kodunuz:",
+                    fontSize = 11.sp,
+                    color = Color.Gray,
+                    fontWeight = FontWeight.Bold
+                )
+                
+                val context = LocalContext.current
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.White, RoundedCornerShape(8.dp))
+                        .border(BorderStroke(1.dp, Color(0xFFE2E8F0)), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = refCode,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 14.sp,
+                        color = Color(0xFF185C5C)
+                    )
+                    IconButton(
+                        onClick = {
+                            val clipboardManager = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                            val clipData = android.content.ClipData.newPlainText("Referans Kodu", refCode)
+                            clipboardManager.setPrimaryClip(clipData)
+                            viewModel.triggerNotification("Referans kodu kopyalandı!")
+                        },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ContentCopy,
+                            contentDescription = "Kopyala",
+                            tint = Color(0xFF185C5C),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(10.dp))
+                
+                // Davet Linki alanı
+                val inviteLink = "https://kuaforum.com/invite?code=$refCode"
+                Text(
+                    text = "Davet Linkiniz:",
+                    fontSize = 11.sp,
+                    color = Color.Gray,
+                    fontWeight = FontWeight.Bold
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.White, RoundedCornerShape(8.dp))
+                        .border(BorderStroke(1.dp, Color(0xFFE2E8F0)), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = inviteLink,
+                        fontSize = 11.sp,
+                        color = Color.DarkGray,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    IconButton(
+                        onClick = {
+                            val clipboardManager = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                            val clipData = android.content.ClipData.newPlainText("Davet Linki", inviteLink)
+                            clipboardManager.setPrimaryClip(clipData)
+                            viewModel.triggerNotification("Davet linki kopyalandı!")
+                        },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = "Paylaş",
+                            tint = Color(0xFF185C5C),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
             }
         }

@@ -109,4 +109,14 @@ interface AppDao {
 
     @Delete
     suspend fun deleteAd(ad: AdEntity)
+
+    @Delete
+    suspend fun deleteSalon(salon: SalonEntity)
+
+
+    @Query("SELECT * FROM appointments WHERE id = :id")
+    suspend fun getAppointmentById(id: Int): AppointmentEntity?
+
+    @Query("SELECT * FROM appointments WHERE salonId = :salonId")
+    suspend fun getAppointmentsForSalonSync(salonId: Int): List<AppointmentEntity>
 }

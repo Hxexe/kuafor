@@ -15,7 +15,11 @@ data class SalonEntity(
     val workingHours: String, // e.g., "09:00 - 21:00"
     val isApproved: Boolean = true,
     val isFavorite: Boolean = false,
-    val maxGroupSize: Int = 1
+    val maxGroupSize: Int = 1,
+    val status: String = "APPROVED", // "PENDING", "APPROVED", "SUSPENDED"
+    val ownerName: String = "Platform Ortağı",
+    val ownerPhone: String = "05559998877",
+    val commissionRate: Double = 10.0
 )
 
 @Entity(tableName = "services")

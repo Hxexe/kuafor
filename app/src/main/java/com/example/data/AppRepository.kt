@@ -101,4 +101,37 @@ class AppRepository(private val dao: AppDao) {
     suspend fun deleteCoupon(couponId: Int) {
         dao.deleteCoupon(couponId)
     }
+
+    suspend fun getStaffByPhone(phone: String): StaffEntity? {
+        return dao.getStaffByPhone(phone)
+    }
+
+    suspend fun incrementStaffReferral(staffId: Int) {
+        dao.incrementStaffReferral(staffId)
+    }
+
+    fun getAllAdsFlow(): Flow<List<AdEntity>> {
+        return dao.getAllAdsFlow()
+    }
+
+    suspend fun insertAd(ad: AdEntity) {
+        dao.insertAd(ad)
+    }
+
+    suspend fun deleteAd(ad: AdEntity) {
+        dao.deleteAd(ad)
+    }
+
+    suspend fun deleteSalon(salon: SalonEntity) {
+        dao.deleteSalon(salon)
+    }
+
+
+    suspend fun getAppointmentById(id: Int): AppointmentEntity? {
+        return dao.getAppointmentById(id)
+    }
+
+    suspend fun getAppointmentsForSalonSync(salonId: Int): List<AppointmentEntity> {
+        return dao.getAppointmentsForSalonSync(salonId)
+    }
 }
