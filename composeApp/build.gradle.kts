@@ -1,23 +1,10 @@
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.compose.multiplatform)
     alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.android.kotlin.multiplatform.library)
 }
 
 kotlin {
-    android {
-        namespace = "com.example.composeapp"
-        compileSdk = 35
-        minSdk = 21
-
-        compilerOptions.configure {
-            jvmTarget.set(JvmTarget.JVM_11)
-        }
-    }
-
     listOf(
         iosX64(),
         iosArm64(),
@@ -40,9 +27,6 @@ kotlin {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
             implementation(compose.uiTest)
-        }
-        androidMain.dependencies {
-            implementation(libs.androidx.activity.compose)
         }
     }
 }
