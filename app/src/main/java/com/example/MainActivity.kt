@@ -83,6 +83,7 @@ fun OnboardingPortalScreen(viewModel: AppViewModel) {
     var showRoleSelection by remember { mutableStateOf(false) }
     var currentSlide by remember { mutableStateOf(0) }
     var showPhoneLoginDialog by remember { mutableStateOf(false) }
+    var showAdminLoginDialog by remember { mutableStateOf(false) }
 
     val slides = listOf(
         OnboardingSlideData(
@@ -360,7 +361,7 @@ fun OnboardingPortalScreen(viewModel: AppViewModel) {
                 icon = Icons.Filled.Security,
                 tintColor = Color(0xFF1E293B),
                 tag = "role_btn_admin",
-                onClick = { viewModel.navigateTo("ADMIN") }
+                onClick = { showAdminLoginDialog = true }
             )
 
             Spacer(modifier = Modifier.height(30.dp))
@@ -490,6 +491,139 @@ fun OnboardingPortalScreen(viewModel: AppViewModel) {
                 TextButton(
                     onClick = { 
                         showPhoneLoginDialog = false
+                        loginError = null
+                    }
+                ) {
+                    Text("İptal", color = Color(0xFF797979), fontWeight = FontWeight.Bold)
+                }
+            },
+            shape = RoundedCornerShape(20.dp),
+            containerColor = Color.White
+        )
+    }
+
+    if (showAdminLoginDialog) {
+        var emailInput by remember { mutableStateOf("") }
+        var passwordInput by remember { mutableStateOf("") }
+        var loginError by remember { mutableStateOf<String?>(null) }
+        var isLoggingIn by remember { mutableStateOf(false) }
+
+        AlertDialog(
+            onDismissRequest = {
+                showAdminLoginDialog = false
+                loginError = null
+            },
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(Color(0xFF1E293B).copy(alpha = 0.1f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Security,
+                            contentDescription = null,
+                            tint = Color(0xFF1E293B),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Text(
+                        text = "Sistem Yöneticisi Girişi",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        color = Color(0xFF242424)
+                    )
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "Bu alan yalnızca yetkili sistem yöneticileri içindir. Lütfen kayıtlı e-posta ve şifrenizle giriş yapın.",
+                        fontSize = 13.sp,
+                        color = Color(0xFF797979)
+                    )
+
+                    OutlinedTextField(
+                        value = emailInput,
+                        onValueChange = {
+                            emailInput = it
+                            loginError = null
+                        },
+                        placeholder = { Text("admin@ornek.com") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("admin_login_email_input"),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFF1E293B),
+                            unfocusedBorderColor = Color(0xFFE2E8F0)
+                        ),
+                        singleLine = true
+                    )
+
+                    OutlinedTextField(
+                        value = passwordInput,
+                        onValueChange = {
+                            passwordInput = it
+                            loginError = null
+                        },
+                        placeholder = { Text("Şifre") },
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("admin_login_password_input"),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFF1E293B),
+                            unfocusedBorderColor = Color(0xFFE2E8F0)
+                        ),
+                        singleLine = true
+                    )
+
+                    if (loginError != null) {
+                        Text(
+                            text = loginError ?: "",
+                            color = Color.Red,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (emailInput.trim().isBlank() || passwordInput.isBlank()) {
+                            loginError = "E-posta ve şifre boş bırakılamaz!"
+                        } else {
+                            isLoggingIn = true
+                            viewModel.loginAdmin(emailInput.trim(), passwordInput) { errorMsg ->
+                                isLoggingIn = false
+                                loginError = errorMsg
+                            }
+                        }
+                    },
+                    enabled = !isLoggingIn,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(if (isLoggingIn) "Giriş yapılıyor..." else "Giriş Yap", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showAdminLoginDialog = false
                         loginError = null
                     }
                 ) {

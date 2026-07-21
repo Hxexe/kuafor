@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.*
+import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.providers.builtin.Email
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
@@ -385,6 +387,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 viewModelScope.launch {
                     _notificationMessage.emit("Giriş yapıldı: Welcome, $name")
                 }
+            }
+        }
+    }
+
+    fun loginAdmin(email: String, password: String, onFail: (String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                SupabaseClient.client.auth.signInWith(Email) {
+                    this.email = email
+                    this.password = password
+                }
+                navigateTo("ADMIN")
+            } catch (e: Exception) {
+                onFail("Giriş başarısız: e-posta veya şifre hatalı.")
             }
         }
     }
