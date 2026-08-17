@@ -1,50 +1,57 @@
 # 💇‍♂️ Kuaförüm — İlerleme ve Son Durum Raporu
 
-> **Son Güncelleme:** 2026-06-29
-> **En Son İşlem:** Takvim ve Manuel Randevu Düzeltmeleri & APK Derleme (BAŞARILI 🎉)
+> **Son Güncelleme:** 2026-07-21
+> **En Son İşlem:** [[docs/superpowers/plans/2026-07-02-kuafor-features|Kuaförüm Özellikleri Uygulama Planı]] — 7 görevden 6'sı koda tamamen işlendi, derleme/APK doğrulaması bekliyor
 
 ---
 
 ## 📌 Proje Özeti
 **Kuaförüm** — Kuaför, Berber ve Güzellik Salonları için gelişmiş mobil online randevu platformu.
 * **Platform:** Native Android (Kotlin & Jetpack Compose)
-* **Veritabanı:** Room DB (SQLite tabanlı, yerel çevrimdışı kalıcılık)
+* **Veritabanı:** Room DB (yerel çevrimdışı kalıcılık) + **Supabase** (bulut senkronizasyonu, `SupabaseClient.kt` / `SupabaseRepository.kt`)
 * **Mimari:** MVVM (Model-View-ViewModel) + Repository Pattern
-* **Proje Klasörü:** `c:\Users\AOSB\OneDrive - Adana Hacı Sabancı Organize Sanayi Bölgesi Bölge Müdürlüğü\Masaüstü\hk\ku`
+* **Proje Klasörü:** `G:\Drive'ım\HLLOBS\YZ\01_PROJELER\ku`
 * **GitHub Deposu:** [https://github.com/Hxexe/kuafor](https://github.com/Hxexe/kuafor)
+* **Git Durumu:** `main` branch, `origin/main` ile senkron, working tree temiz.
 
 ---
 
-## 🏗️ En Son Tamamlanan Geliştirmeler (29 Haziran 2026)
+## 🏗️ Tamamlanan Geliştirmeler (Kod Taramasıyla Doğrulandı — 2026-07-21)
 
-### 1. Takvim Gün Geçişlerinin Dinamikleştirilmesi ✅
-* **Sorun:** Salon panelindeki takvim gün geçiş butonları hardcoded olarak `"03.06.2026"` ve `"05.06.2026"` tarihlerine geçiş yapıyordu, bu nedenle diğer tarihlerdeki randevulara veya `"04.06.2026"` gününe ulaşılamıyordu.
-* **Çözüm:** `AppViewModel` içerisine dinamik tarih hesaplama işlevi eklenerek yön tuşları (`ChevronLeft` / `ChevronRight`) gün atlatacak şekilde yapılandırıldı. Artık takvim günleri sınırsız ve dinamik bir biçimde değiştirilebilmektedir.
+Aşağıdaki maddeler [[docs/superpowers/plans/2026-07-02-kuafor-features|plan dosyasındaki]] görevlere karşılık gelir. Plan dokümanındaki checkbox'lar daha önce işaretlenmemişti; bu tarama ile koddaki fiili durum eşitlendi.
 
-### 2. Manuel Randevu Tarih Uyuşmazlığının Giderilmesi ✅
-* **Sorun:** Telefonla manuel randevu ekleme penceresinde tarih seçimi bulunmuyordu. Oluşturulan randevu varsayılan olarak `"04.06.2026"` tarihine atılıyor ve o an aktif olan takvim günüyle eşleşmediği için listede görünmüyordu.
-* **Çözüm:** 
-  - Manuel Randevu Ekle butonuna basıldığında aktif takvim tarihi diyaloğa otomatik aktarıldı.
-  - Randevu Ekleme penceresine **"Randevu Tarihi"** girdisi (`OutlinedTextField`) eklenerek tarihin doğrulanabilmesi ve değiştirilebilmesi sağlandı.
+### Görev 1: Veri Modelleri & DAO ✅
+* `StaffEntity` (phone, referralCount, offDays) ve `AdEntity` `Entities.kt`'de mevcut.
+* `getStaffByPhone`, `incrementStaffReferral`, `getAllAdsFlow`, `insertAd`, `deleteAd` sorguları `AppDao.kt`'de mevcut.
 
-### 3. Rezervasyon Yönlendirme Akışı (Önceki Oturum) ✅
-* Randevu onay işleminden sonra kullanıcının doğrudan aktif randevularını görebileceği **"Randevularım" (`CUSTOMER_BOOKINGS`)** ekranına gitmesi sağlandı.
+### Görev 2: AppViewModel İş Mantığı ✅
+* `loggedInStaff`, `businessAds`, `customerReferralCount` state'leri; `loginBusinessOrStaff`, `handleReferralRegistration`, `saveCustomCommissionRate`, `addNewAd` fonksiyonları `AppViewModel.kt`'de mevcut.
 
-### 4. Arayüz & Navigasyon Sadeleştirmesi (Önceki Oturum) ✅
-* Müşteri ana ekranındaki çift üst bar başlık karmaşası giderildi ve alt navigasyon çubuğu alt ekranlarda (cüzdan, sohbet, detay vb.) otomatik gizlenecek şekilde koşullandırıldı.
+### Görev 3: Onboarding & Rol Navigasyonu ✅
+* `STAFF_PANEL` rotası ve `StaffMainScreen` (`BusinessScreens.kt`), "Şifremi Unuttum" akışı `MainActivity.kt`'de mevcut.
+* Çalışan paneli içinde "🏆 Salon İçi Liderlik Tablosu" uygulanmış.
 
-### 5. Geri Tuşu ve Kontrast İyileştirmeleri (Önceki Oturum) ✅
-* Jetpack Compose `BackHandler` kullanılarak sanal geri tuşu mantığı eklendi. İşletme yönetim paneli ev butonu okunabilirliği için ikon ve yazı rengi beyaz yapıldı.
+### Görev 4: Müşteri Paneli (Harita, Hızlı Seçim, Yorumlar) ✅
+* "Liste Görünümü" / "Harita Görünümü" sekmeleri, "Öne Çıkan Salonlar" carousel'i, `viewModel.businessAds` reklam banner'ı, yıldızlı değerlendirme/yorum popup'ı ve "Arkadaşını Davet Et" (`CUST_` referans kodu) `CustomerScreens.kt`'de mevcut.
+
+### Görev 5: Takvim & Manuel Randevu ✅
+* `DatePickerDialog` entegrasyonu ve zaman slotu grid yapısı `BusinessScreens.kt`'de mevcut (dinamik gün geçişi önceki oturumdan beri çalışıyor).
+
+### Görev 6: Admin Onay/Komisyon/Reklam Paneli ✅
+* "Kayıt Başvuruları / Aktif Salonlar / Kısıtlı Salonlar" 3 sekmesi, `saveCustomCommissionRate` ve `addNewAd` çağrıları `AdminScreens.kt`'de mevcut.
+
+### Görev 7: Derleme, Doğrulama, Push ⚠️ Kısmen / ⛔ Bloke
+* Push origin main ile senkron — tamam.
+* **Derleme/APK doğrulaması güncel değil:** son başarılı APK derlemesi 2026-07-02/03 tarihli, ancak sonrasında `3d30f27` (2026-07-11, UI redesign) commit'i gelmiş. Yani en son kod, derlenmiş APK'ya yansımamış olabilir — **yeniden derleme + doğrulama gerekiyor.**
+* **Bloker:** Bu kasanın çalıştığı makinede JDK/Android SDK kurulu değil, dolayısıyla derleme buradan yapılamıyor. Android Studio + JDK kurulu makineden (önceki oturumlarda kullanılan `hk\ku` yolu) elle çalıştırılması gerekiyor.
 
 ---
 
-## 📦 En Son Derleme & APK Durumu
-
-Derleme sırasında Windows üzerinde Türkçe karakter yolu kısıtlamasını aşmak için `gradle.properties` dosyasına `android.overridePathCheck=true` kuralı eklenmiş ve derleme başarıyla tamamlanmıştır.
-
-* **Son Başarılı Derleme Zamanı:** 29.06.2026 23:11 (Local Time)
-* **Derlenen APK Konumu:** [app-debug.apk](file:///c:/Users/AOSB/OneDrive - Adana Hacı Sabancı Organize Sanayi Bölgesi Bölge Müdürlüğü/Masaüstü/hk/ku/app/build/outputs/apk/debug/app-debug.apk) (Boyut: ~19.39 MB)
-* **Kopyalanan İndirme Klasörü Konumu:** [kuaforum_v1.0_debug.apk](file:///c:/Users/AOSB/OneDrive - Adana Hacı Sabancı Organize Sanayi Bölgesi Bölge Müdürlüğü/Masaüstü/hk/ku/APK_DOWNLOAD/kuaforum_v1.0_debug.apk)
+## 🌐 Bulut Entegrasyonu (Bu Turda Fark Edilen, Plana Dahil Olmayan İşler)
+Commit geçmişinde plana dahil olmayan ama tamamlanmış ek işler var:
+* Supabase Client & Cloud Entities kurulumu (`SupabaseClient.kt`, `CloudEntities.kt`, `SupabaseRepository.kt`)
+* WhatsApp büyüme döngüsü (growth loop) entegrasyonu
+* Dinamik zaman dilimi hesaplama algoritması + unit testler
 
 ---
 
@@ -52,23 +59,27 @@ Derleme sırasında Windows üzerinde Türkçe karakter yolu kısıtlamasını a
 ```
 ku/
 ├── app/src/main/java/com/example/
-│   ├── MainActivity.kt           ← Uygulama başlangıcı ve genel rota yönetimi
+│   ├── MainActivity.kt           ← Uygulama başlangıcı, rota yönetimi, onboarding
 │   ├── data/
-│   │   ├── Entities.kt           ← DB tabloları (Salon, Randevu, Çalışan, Kupon vb.)
+│   │   ├── Entities.kt           ← DB tabloları (Salon, Randevu, Çalışan, Kupon, Reklam vb.)
+│   │   ├── CloudEntities.kt      ← Supabase bulut modelleri
 │   │   ├── AppDao.kt             ← SQLite veritabanı sorguları
-│   │   ├── AppRepository.kt      ← Veri erişim soyutlama katmanı
+│   │   ├── AppRepository.kt      ← Yerel veri erişim soyutlama katmanı
+│   │   ├── SupabaseClient.kt     ← Supabase bağlantı istemcisi
+│   │   ├── SupabaseRepository.kt ← Bulut veri erişim katmanı
 │   │   └── AppDatabase.kt        ← Veritabanı seeding ve kurulum yönetimi
 │   └── ui/
-│       ├── AppViewModel.kt       ← Merkezi iş mantığı, bildirimler, cüzdan ve sepet yönetimi
-│       ├── CustomerScreens.kt    ← Müşteri modülü ekranları (Arama, detay, rezervasyon sihirbazı vb.)
-│       ├── BusinessScreens.kt    ← İşletme modülü ekranları (Randevu takvimi, hizmet/kampanya yönetimi)
-│       └── AdminScreens.kt       ← Platform yöneticisi ekranları (Salon onaylama, komisyon oranları vb.)
-├── APK_DOWNLOAD/                 ← En güncel derleme APK'larının toplandığı indirme klasörü
-└── gradle.properties             ← overridePathCheck=true tanımlı Gradle ayarları
+│       ├── AppViewModel.kt       ← Merkezi iş mantığı, roller, referans/kupon, reklam/komisyon
+│       ├── CustomerScreens.kt    ← Müşteri modülü (Harita/Liste, rezervasyon, yorumlar, davet)
+│       ├── BusinessScreens.kt    ← İşletme + Çalışan paneli (takvim, liderlik tablosu)
+│       └── AdminScreens.kt       ← Platform yöneticisi (onay sekmeleri, komisyon, reklam)
+├── APK_DOWNLOAD/                 ← En güncel derleme APK'larının toplandığı indirme klasörü (GÜNCEL DEĞİL, bkz. Görev 7)
+└── docs/superpowers/plans/2026-07-02-kuafor-features.md ← Aktif geliştirme planı
 ```
 
 ---
 
 ## ⏭️ Sıradaki Adımlar (Yapılacaklar)
-- [ ] Projenin son halini GitHub uzak deposuna yüklemek (Kök dizindeki `push_to_github.bat` dosyası çalıştırılarak yapılabilir).
-- [ ] Gerçek cihazda veya emülatörde takvim gün atlatma ve manuel randevu giriş işlemlerini test etmek.
+- [ ] **Öncelik (JDK/Android Studio kurulu bir makineden yapılmalı):** `gradlew assembleDebug` ile yeniden derleme yap, güncel kodun hatasız derlendiğini doğrula, APK'yı `APK_DOWNLOAD/` altına kopyala.
+- [ ] Gerçek cihaz/emülatörde son UI redesign (onboarding, takvim, admin panelleri) ve Supabase bulut senkronizasyonunu uçtan uca test et.
+- [ ] WhatsApp growth loop entegrasyonu için ayrı bir `ilerleme` notu/spec eklenmesi düşünülebilir (şu an plana dahil değil, sadece commit mesajından biliniyor).
