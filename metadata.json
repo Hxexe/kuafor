@@ -1,0 +1,6 @@
+{
+  "name": "Kuaförüm",
+  "description": "Kuaför & Berber Online Randevu Platformu (Online Hairdresser & Barber Appointment Platform)",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
