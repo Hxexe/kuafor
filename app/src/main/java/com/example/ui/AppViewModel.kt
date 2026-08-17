@@ -374,33 +374,56 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // Complete customer login / profile update
-    fun loginCustomer(name: String, phone: String, refCode: String = "") {
-        if (name.isNotBlank() && phone.isNotBlank()) {
-            customerName.value = name
-            customerPhone.value = phone
-            _currentScreen.value = "CUSTOMER"
-            if (refCode.trim().isNotBlank()) {
-                handleReferralRegistration(refCode.trim().uppercase(), phone)
-            } else {
-                viewModelScope.launch {
-                    _notificationMessage.emit("Giriş yapıldı: Welcome, $name")
-                }
+    fun loginCustomer(name: String, phone: String, password: String, refCode: String = "", onFail: (String) -> Unit) {
+        if (name.isBlank() || phone.isBlank() || password.isBlank()) {
+            onFail("Tüm alanlar zorunludur.")
+            return
+        }
+        val passKey = "customer_password_$phone"
+        if (prefs.contains(passKey)) {
+            val storedPass = prefs.getString(passKey, "")
+            if (storedPass != password) {
+                onFail("Hata: Şifre hatalı!")
+                return
+            }
+        } else {
+            // Register new user
+            prefs.edit().putString(passKey, password).apply()
+        }
+        customerName.value = name
+        customerPhone.value = phone
+        _currentScreen.value = "CUSTOMER"
+        
+        if (refCode.trim().isNotBlank()) {
+            handleReferralRegistration(refCode.trim().uppercase(), phone)
+        } else {
+            viewModelScope.launch {
+                _notificationMessage.emit("Giriş yapıldı: Hoş geldiniz, $name")
             }
         }
     }
 
-    fun loginBusinessOrStaff(phone: String, onFail: (String) -> Unit) {
+    fun loginBusinessOrStaff(phone: String, password: String, onFail: (String) -> Unit) {
         viewModelScope.launch {
-            if (phone == "05559998877") {
-                // Salon Sahibi
-                loggedInStaff.value = null
-                navigateTo("BUSINESS")
+            val normalizedPhone = phone.replace(" ", "")
+            if (normalizedPhone == "05559998877") {
+                val salon = repository.getSalonById(1)
+                if (salon != null && salon.password == password) {
+                    loggedInStaff.value = null
+                    navigateTo("BUSINESS")
+                } else {
+                    onFail("Hata: İşletme sahibi şifresi yanlış!")
+                }
             } else {
-                val staff = repository.getStaffByPhone(phone.replace(" ", ""))
+                val staff = repository.getStaffByPhone(normalizedPhone)
                 if (staff != null) {
-                    loggedInStaff.value = staff
-                    activeBusinessSalonId.value = staff.salonId
-                    navigateTo("STAFF_PANEL")
+                    if (staff.password == password) {
+                        loggedInStaff.value = staff
+                        activeBusinessSalonId.value = staff.salonId
+                        navigateTo("STAFF_PANEL")
+                    } else {
+                        onFail("Hata: Çalışan şifresi yanlış!")
+                    }
                 } else {
                     onFail("Telefon numarası sistemde kayıtlı bir salon sahibine veya çalışana ait değil!")
                 }

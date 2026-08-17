@@ -19,7 +19,8 @@ data class SalonEntity(
     val status: String = "APPROVED", // "PENDING", "APPROVED", "SUSPENDED"
     val ownerName: String = "Platform Ortağı",
     val ownerPhone: String = "05559998877",
-    val commissionRate: Double = 10.0
+    val commissionRate: Double = 10.0,
+    val password: String = "owner123"
 )
 
 @Entity(tableName = "services")
@@ -44,7 +45,8 @@ data class StaffEntity(
     val workingHours: String = "09:00 - 19:00",
     val offDays: String = "Pazar", // comma separated off days
     val phone: String = "", // Telefon giriş eşleştirmesi için
-    val referralCount: Int = 0 // Liderlik tablosu üye puanı için
+    val referralCount: Int = 0, // Liderlik tablosu üye puanı için
+    val password: String = "12345"
 )
 
 @Entity(tableName = "ads")
